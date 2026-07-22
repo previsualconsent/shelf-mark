@@ -202,57 +202,167 @@
 
 <button class="fab" id="fab" aria-label="Add">+</button>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script>
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '2.0.0';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
   { v:'1.2.0', notes:'Added localStorage fallback so the app still saves data when opened outside the Claude artifact runtime (no window.storage).' },
   { v:'1.4.0', notes:'Added in-app version tracking (this footer tag + history log).' },
+  { v:'2.0.0', notes:'Cross-device sync via Firestore. Each reader has their own shelf (name + uuid); a device can hold multiple readers via a roster stored locally, added by sharing a link.' },
 ];
 
-/* ---------- storage ---------- */
-/* Uses window.storage when running inside a Claude artifact (persists across
-   devices/sessions there). Falls back to localStorage when opened as a
-   standalone file in a regular browser like Chrome, where window.storage
-   doesn't exist. */
-const STORE_KEY = 'shelfmark-data-v1';
-const hasArtifactStorage = typeof window.storage !== 'undefined' && window.storage !== null;
+/* ---------- firebase ---------- */
+/* Fill these in from your Firebase project (Project Settings -> General -> Your apps).
+   This config is not a secret; Firestore security rules are the real access boundary. */
+const firebaseConfig = {
+  apiKey: "AIzaSyDGiVk8vJ-o086pZzt_yT1Htgy7MvWcxiw",
+  authDomain: "shelfmark-ce679.firebaseapp.com",
+  projectId: "shelfmark-ce679",
+  storageBucket: "shelfmark-ce679.firebasestorage.app",
+  messagingSenderId: "542021762988",
+  appId: "1:542021762988:web:044f8e6394035dc7e1c409",
+};
+const firebaseReady = firebaseConfig.apiKey !== 'REPLACE_ME';
+let db = null;
+if(firebaseReady){
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.firestore();
+  db.enablePersistence().catch(err=>{ console.warn('Firestore offline persistence unavailable:', err.code); });
+} else {
+  console.warn('Shelfmark: firebaseConfig is still a placeholder — cross-device sync is disabled until it is filled in.');
+}
+function personDocRef(uid){ return db.collection('people').doc(uid); }
 
-async function loadData(){
+/* ---------- roster (which readers this device can see) ---------- */
+const ROSTER_KEY = 'shelfmark-roster';
+function loadRoster(){
   try{
-    let raw = null;
-    if(hasArtifactStorage){
-      const result = await window.storage.get(STORE_KEY, false);
-      raw = result ? result.value : null;
-    } else {
-      raw = localStorage.getItem(STORE_KEY);
+    const raw = localStorage.getItem(ROSTER_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  }catch(e){ return []; }
+}
+function saveRoster(list){
+  try{ localStorage.setItem(ROSTER_KEY, JSON.stringify(list)); }catch(e){}
+}
+function rosterNameFor(uid){
+  const r = roster.find(x=>x.uid===uid);
+  return r ? r.name : 'Reader';
+}
+function personUid(){
+  if(typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'p-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+}
+function mergeIncomingAddParam(){
+  const params = new URLSearchParams(location.search);
+  const addUid = params.get('add');
+  const addName = params.get('name');
+  if(addUid && addName){
+    const r = loadRoster();
+    if(!r.some(x=>x.uid===addUid)){
+      r.push({ name: addName, uid: addUid });
+      saveRoster(r);
     }
+    const url = new URL(location.href);
+    url.searchParams.delete('add');
+    url.searchParams.delete('name');
+    history.replaceState({}, '', url.pathname + url.search + url.hash);
+  }
+}
+function shareLinkFor(uid){
+  return `${location.origin}${location.pathname}?add=${encodeURIComponent(uid)}&name=${encodeURIComponent(rosterNameFor(uid))}`;
+}
+function showShareLink(uid){
+  const link = shareLinkFor(uid);
+  const message = 'Send this link to the other device to add "'+rosterNameFor(uid)+'" there:\n\n'+link;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link).then(()=> alert('Link copied!\n\n'+message)).catch(()=> prompt(message, link));
+  } else {
+    prompt(message, link);
+  }
+}
+
+/* ---------- storage (per-reader, Firestore + localStorage mirror) ---------- */
+function loadCachedData(uid){
+  try{
+    const raw = localStorage.getItem('shelfmark-data-'+uid);
     if(!raw) return { books: [], rewardLabels: {} };
     const parsed = JSON.parse(raw);
     parsed.books = parsed.books || [];
     parsed.rewardLabels = parsed.rewardLabels || {};
     return parsed;
-  }catch(e){
-    return { books: [], rewardLabels: {} };
-  }
+  }catch(e){ return { books: [], rewardLabels: {} }; }
 }
 async function saveData(){
+  if(!currentUid) return;
+  peopleCache[currentUid] = data;
+  try{ localStorage.setItem('shelfmark-data-'+currentUid, JSON.stringify(data)); }catch(e){}
+  if(!firebaseReady) return;
   try{
-    const payload = JSON.stringify(data);
-    if(hasArtifactStorage){
-      await window.storage.set(STORE_KEY, payload, false);
-    } else {
-      localStorage.setItem(STORE_KEY, payload);
-    }
-  }catch(e){
-    console.error('Save failed:', e);
+    await personDocRef(currentUid).set({
+      name: rosterNameFor(currentUid),
+      books: data.books,
+      rewardLabels: data.rewardLabels,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  }catch(e){ console.error('Save failed:', e); }
+}
+function attachListener(uid){
+  if(!firebaseReady || listeners[uid]) return;
+  listeners[uid] = personDocRef(uid).onSnapshot(snap=>{
+    if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
+    const remote = snap.data();
+    if(!remote) return;
+    const fresh = { books: remote.books || [], rewardLabels: remote.rewardLabels || {} };
+    peopleCache[uid] = fresh;
+    try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
+    if(uid === currentUid) data = fresh;
+    render();
+  }, err=> console.error('Snapshot error for', uid, err));
+}
+function personTotalPages(uid){
+  const pd = peopleCache[uid];
+  if(!pd) return 0;
+  return (pd.books||[]).reduce((sum,b)=>sum+bookEffectivePages(b),0);
+}
+function selectPerson(uid){
+  currentUid = uid;
+  if(!peopleCache[uid]) peopleCache[uid] = loadCachedData(uid);
+  data = peopleCache[uid];
+  view = { screen:'home', bookId:null };
+}
+async function createReader(name){
+  const newUid = personUid();
+  peopleCache[newUid] = { books: [], rewardLabels: {} };
+  roster.push({ name, uid: newUid });
+  saveRoster(roster);
+  attachListener(newUid);
+  if(firebaseReady){
+    try{
+      await personDocRef(newUid).set({ name, books: [], rewardLabels: {}, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    }catch(e){ console.error('Create reader failed:', e); }
   }
+  return newUid;
+}
+async function ensureInitialReader(){
+  if(roster.length > 0) return;
+  let name = '';
+  while(!name){
+    name = (prompt('Welcome to Shelfmark! Whose reading shelf is this?') || '').trim();
+  }
+  await createReader(name);
 }
 
+let roster = [];
+let peopleCache = {};
+let listeners = {};
+let currentUid = null;
 let data = { books: [], rewardLabels: {} };
 let view = { screen:'home', bookId:null };
 
@@ -285,13 +395,121 @@ function sortedEntries(book){
 function render(){
   const app = document.getElementById('app');
   app.innerHTML = '';
-  if(view.screen==='home') app.appendChild(renderHome());
+  if(view.screen==='roster') app.appendChild(renderRoster());
+  else if(view.screen==='home') app.appendChild(renderHome());
   else if(view.screen==='book') app.appendChild(renderBook(view.bookId));
   document.getElementById('fab').style.display = view.screen==='home' ? 'flex' : 'none';
 }
 
+function renderRoster(){
+  const wrap = document.createElement('div');
+
+  const header = document.createElement('header');
+  header.className = 'top';
+  header.innerHTML = `<h1>Shelfmark</h1><span class="tag">Reading Tracker</span>`;
+  wrap.appendChild(header);
+
+  const versionTag = document.createElement('div');
+  versionTag.className = 'version-tag';
+  versionTag.textContent = `v${APP_VERSION}`;
+  wrap.appendChild(versionTag);
+
+  wrap.appendChild(sectionTitle('Readers'));
+  roster.forEach(r=>{
+    const el = document.createElement('div');
+    el.className = 'card book-card';
+    const total = personTotalPages(r.uid);
+    el.innerHTML = `
+      <div class="book-row">
+        <div>
+          <div class="book-title">${escapeHtml(r.name)}</div>
+          <div class="book-meta">${total} pages read</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <div class="book-page">${total}p</div>
+          <button class="del-x" data-share="${r.uid}" title="Share link" style="font-size:18px;">🔗</button>
+        </div>
+      </div>`;
+    el.addEventListener('click', (e)=>{
+      if(e.target.closest('[data-share]')) return;
+      selectPerson(r.uid); render();
+    });
+    el.querySelector('[data-share]').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      showShareLink(r.uid);
+    });
+    wrap.appendChild(el);
+  });
+
+  wrap.appendChild(sectionTitle('Add a reader'));
+  wrap.appendChild(addReaderCard());
+
+  return wrap;
+}
+
+function addReaderCard(){
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = `
+    <div style="font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); margin-bottom:10px;">
+      Add another reader on this device, then share their link to add them elsewhere.
+    </div>
+    <button class="btn btn-secondary" id="btn-new-reader" style="width:100%;">+ Add reader</button>
+  `;
+  el.querySelector('#btn-new-reader').addEventListener('click', openAddReaderSheet);
+  return el;
+}
+
+function openAddReaderSheet(){
+  openSheet(`
+    <h2>Add a reader</h2>
+    <div class="field"><label>Name</label><input id="f-name" type="text" placeholder="e.g. Maya"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="f-cancel">Cancel</button>
+      <button class="btn btn-primary" id="f-save">Add reader</button>
+    </div>
+  `, (root)=>{
+    root.querySelector('#f-cancel').addEventListener('click', closeSheet);
+    root.querySelector('#f-save').addEventListener('click', async ()=>{
+      const name = root.querySelector('#f-name').value.trim();
+      if(!name) return;
+      const newUid = await createReader(name);
+      closeSheet();
+      view = { screen:'roster' };
+      render();
+      showShareLink(newUid);
+    });
+    root.querySelector('#f-name').focus();
+  });
+}
+
+function readersCard(){
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.innerHTML = `
+    <div style="font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); margin-bottom:10px;">
+      Reading as <strong>${escapeHtml(rosterNameFor(currentUid))}</strong>. Share this shelf with another device, or add another reader here.
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="btn-share">Share this shelf</button>
+      <button class="btn btn-secondary" id="btn-add-reader">+ Add reader</button>
+    </div>
+  `;
+  el.querySelector('#btn-share').addEventListener('click', ()=> showShareLink(currentUid));
+  el.querySelector('#btn-add-reader').addEventListener('click', openAddReaderSheet);
+  return el;
+}
+
 function renderHome(){
   const wrap = document.createElement('div');
+
+  if(roster.length > 1){
+    const back = document.createElement('button');
+    back.className = 'back-link';
+    back.textContent = '← Readers';
+    back.addEventListener('click', ()=>{ view = { screen:'roster' }; render(); });
+    wrap.appendChild(back);
+  }
 
   const header = document.createElement('header');
   header.className = 'top';
@@ -345,6 +563,9 @@ function renderHome(){
 
   wrap.appendChild(sectionTitle('Rewards'));
   wrap.appendChild(rewardsCard(total));
+
+  wrap.appendChild(sectionTitle('Readers'));
+  wrap.appendChild(readersCard());
 
   wrap.appendChild(sectionTitle('Data'));
   wrap.appendChild(dataCard());
@@ -667,10 +888,17 @@ function openEntrySheet(bookId){
 
 async function init(){
   document.getElementById('app').innerHTML = `<div style="padding:60px 20px; text-align:center; font-family:'Inter',sans-serif; color:var(--page-warm); opacity:0.8;">Loading your shelf…</div>`;
-  try{
-    data = await loadData();
-  }catch(e){
-    data = { books: [], rewardLabels: {} };
+  mergeIncomingAddParam();
+  roster = loadRoster();
+  await ensureInitialReader();
+  roster.forEach(r=>{
+    peopleCache[r.uid] = loadCachedData(r.uid);
+    attachListener(r.uid);
+  });
+  if(roster.length <= 1){
+    selectPerson(roster[0].uid);
+  } else {
+    view = { screen:'roster' };
   }
   render();
 }
