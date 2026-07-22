@@ -205,6 +205,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
 <script>
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
@@ -230,9 +231,21 @@ const firebaseConfig = {
   appId: "1:542021762988:web:044f8e6394035dc7e1c409",
 };
 const firebaseReady = firebaseConfig.apiKey !== 'REPLACE_ME';
+/* App Check gates writes to real app instances (not scripts hitting Firestore directly).
+   Site key is from Firebase Console -> App Check -> Apps -> this web app (reCAPTCHA v3).
+   Set enforcement to "Enforced" for Firestore in the same App Check console section once verified. */
+const RECAPTCHA_SITE_KEY = '6Ld-XmAtAAAAAALAO3rgsMkQ6IRnNxyqMC6vi2TC';
 let db = null;
 if(firebaseReady){
   firebase.initializeApp(firebaseConfig);
+  if(RECAPTCHA_SITE_KEY !== 'REPLACE_ME'){
+    firebase.appCheck().activate(
+      new firebase.appCheck.ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
+      true
+    );
+  } else {
+    console.warn('Shelfmark: RECAPTCHA_SITE_KEY is still a placeholder — App Check is disabled.');
+  }
   db = firebase.firestore();
   db.enablePersistence().catch(err=>{ console.warn('Firestore offline persistence unavailable:', err.code); });
 } else {
