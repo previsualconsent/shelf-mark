@@ -57,6 +57,14 @@
     letter-spacing:1.5px;
     color:var(--gold);
   }
+  .version-tag{
+    font-family:'Inter', sans-serif;
+    font-size:10px;
+    color:var(--page-warm);
+    opacity:0.5;
+    text-align:center;
+    padding:2px 0 4px;
+  }
 
   /* Signature element: the shelf */
   .shelf{
@@ -168,6 +176,7 @@
   }
   .btn-primary{ background:var(--cover); color:var(--page); }
   .btn-secondary{ background:var(--rule); color:var(--ink); }
+  .btn-accent{ background:var(--gold); color:var(--cover-dark); }
   .btn-danger{ background:transparent; color:var(--danger); text-decoration:underline; font-weight:500; }
 
   .history{ margin-top:14px; }
@@ -194,21 +203,57 @@
 <button class="fab" id="fab" aria-label="Add">+</button>
 
 <script>
+/* ---------- version ---------- */
+/* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
+   Shown as a small footer tag in the header so old copies can be told apart. */
+const APP_VERSION = '1.4.0';
+const VERSION_HISTORY = [
+  { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
+  { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
+  { v:'1.2.0', notes:'Added localStorage fallback so the app still saves data when opened outside the Claude artifact runtime (no window.storage).' },
+  { v:'1.4.0', notes:'Added in-app version tracking (this footer tag + history log).' },
+];
+
 /* ---------- storage ---------- */
+/* Uses window.storage when running inside a Claude artifact (persists across
+   devices/sessions there). Falls back to localStorage when opened as a
+   standalone file in a regular browser like Chrome, where window.storage
+   doesn't exist. */
 const STORE_KEY = 'shelfmark-data-v1';
-function loadData(){
+const hasArtifactStorage = typeof window.storage !== 'undefined' && window.storage !== null;
+
+async function loadData(){
   try{
-    const raw = localStorage.getItem(STORE_KEY);
+    let raw = null;
+    if(hasArtifactStorage){
+      const result = await window.storage.get(STORE_KEY, false);
+      raw = result ? result.value : null;
+    } else {
+      raw = localStorage.getItem(STORE_KEY);
+    }
     if(!raw) return { books: [], rewardLabels: {} };
     const parsed = JSON.parse(raw);
     parsed.books = parsed.books || [];
     parsed.rewardLabels = parsed.rewardLabels || {};
     return parsed;
-  }catch(e){ return { books: [], rewardLabels: {} }; }
+  }catch(e){
+    return { books: [], rewardLabels: {} };
+  }
 }
-function saveData(){ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+async function saveData(){
+  try{
+    const payload = JSON.stringify(data);
+    if(hasArtifactStorage){
+      await window.storage.set(STORE_KEY, payload, false);
+    } else {
+      localStorage.setItem(STORE_KEY, payload);
+    }
+  }catch(e){
+    console.error('Save failed:', e);
+  }
+}
 
-let data = loadData();
+let data = { books: [], rewardLabels: {} };
 let view = { screen:'home', bookId:null };
 
 /* ---------- helpers ---------- */
@@ -252,6 +297,11 @@ function renderHome(){
   header.className = 'top';
   header.innerHTML = `<h1>Shelfmark</h1><span class="tag">Reading Tracker</span>`;
   wrap.appendChild(header);
+
+  const versionTag = document.createElement('div');
+  versionTag.className = 'version-tag';
+  versionTag.textContent = `v${APP_VERSION}`;
+  wrap.appendChild(versionTag);
 
   const total = totalPagesRead();
   const nextMilestone = (Math.floor(total/100)+1)*100;
@@ -327,7 +377,7 @@ function dataCard(){
 }
 
 function exportData(){
-  const payload = JSON.stringify(data, null, 2);
+  const payload = JSON.stringify({ ...data, exportedFromVersion: APP_VERSION }, null, 2);
   const blob = new Blob([payload], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -443,11 +493,6 @@ function renderBook(bookId){
   const wrap = document.createElement('div');
   if(!b){ view={screen:'home'}; return renderHome(); }
 
-  const back = document.createElement('button');
-  back.className='back-link'; back.textContent='← All books';
-  back.addEventListener('click', ()=>{ view={screen:'home'}; render(); });
-  wrap.appendChild(back);
-
   const header = document.createElement('header');
   header.className='top';
   header.innerHTML = `<h1 style="font-size:22px;">${escapeHtml(b.title)}</h1>`;
@@ -473,11 +518,29 @@ function renderBook(bookId){
   wrap.appendChild(summary);
 
   const addBtn = document.createElement('button');
-  addBtn.className='btn btn-primary';
-  addBtn.style.width='100%'; addBtn.style.marginBottom='14px';
-  addBtn.textContent='Log page progress';
+  addBtn.className='btn btn-accent';
+  addBtn.style.width='100%'; addBtn.style.marginBottom='10px';
+  addBtn.textContent='Log progress';
   addBtn.addEventListener('click', ()=> openEntrySheet(b.id));
   wrap.appendChild(addBtn);
+
+  const navRow = document.createElement('div');
+  navRow.className='btn-row';
+  navRow.style.marginBottom='14px';
+
+  const backBtn = document.createElement('button');
+  backBtn.className='btn btn-secondary';
+  backBtn.textContent='← Books';
+  backBtn.addEventListener('click', ()=>{ view={screen:'home'}; render(); });
+  navRow.appendChild(backBtn);
+
+  const editBtn = document.createElement('button');
+  editBtn.className='btn btn-secondary';
+  editBtn.textContent='Edit details';
+  editBtn.addEventListener('click', ()=> openBookEditSheet(b.id));
+  navRow.appendChild(editBtn);
+
+  wrap.appendChild(navRow);
 
   wrap.appendChild(sectionTitle('History'));
   const histCard = document.createElement('div');
@@ -500,13 +563,6 @@ function renderBook(bookId){
       saveData(); render();
     });
   });
-
-  const editBtn = document.createElement('button');
-  editBtn.className='btn btn-secondary';
-  editBtn.style.width='100%'; editBtn.style.marginTop='16px';
-  editBtn.textContent='Edit book details';
-  editBtn.addEventListener('click', ()=> openBookEditSheet(b.id));
-  wrap.appendChild(editBtn);
 
   return wrap;
 }
@@ -609,7 +665,16 @@ function openEntrySheet(bookId){
   });
 }
 
-render();
+async function init(){
+  document.getElementById('app').innerHTML = `<div style="padding:60px 20px; text-align:center; font-family:'Inter',sans-serif; color:var(--page-warm); opacity:0.8;">Loading your shelf…</div>`;
+  try{
+    data = await loadData();
+  }catch(e){
+    data = { books: [], rewardLabels: {} };
+  }
+  render();
+}
+init();
 </script>
 </body>
 </html>
