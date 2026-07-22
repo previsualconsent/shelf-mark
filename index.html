@@ -233,11 +233,18 @@ const firebaseConfig = {
 const firebaseReady = firebaseConfig.apiKey !== 'REPLACE_ME';
 /* App Check gates writes to real app instances (not scripts hitting Firestore directly).
    Site key is from Firebase Console -> App Check -> Apps -> this web app (reCAPTCHA v3).
-   Set enforcement to "Enforced" for Firestore in the same App Check console section once verified. */
+   Set enforcement to "Enforced" for Firestore in the same App Check console section once verified.
+   Local dev (localhost/127.0.0.1) uses a debug token instead of reCAPTCHA, so the production
+   reCAPTCHA key's allowed-domains list never needs to include localhost. On first run this logs
+   a token to the console — add it under App Check -> Apps -> Manage debug tokens. */
 const RECAPTCHA_SITE_KEY = '6Ld-XmAtAAAAAALAO3rgsMkQ6IRnNxyqMC6vi2TC';
+const isLocalDev = ['localhost','127.0.0.1'].includes(location.hostname);
 let db = null;
 if(firebaseReady){
   firebase.initializeApp(firebaseConfig);
+  if(isLocalDev){
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+  }
   if(RECAPTCHA_SITE_KEY !== 'REPLACE_ME'){
     firebase.appCheck().activate(
       new firebase.appCheck.ReCaptchaV3Provider(RECAPTCHA_SITE_KEY),
