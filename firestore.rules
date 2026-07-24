@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     function isValidDoc(d) {
-      return d.keys().hasOnly(['name','books','rewardLabels','updatedAt'])
+      return d.keys().hasOnly(['name','books','rewardLabels','rewardInterval','updatedAt'])
         && d.name is string && d.name.size() < 200
         && d.books is list && d.books.size() < 500
         && d.updatedAt is timestamp

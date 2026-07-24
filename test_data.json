@@ -1,0 +1,129 @@
+{
+  "books": [
+    {
+      "id": "b1",
+      "title": "The Hobbit",
+      "targetPages": 310,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-14", "page": 40 },
+        { "date": "2026-07-18", "page": 85 },
+        { "date": "2026-07-21", "page": 120 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784610000000
+    },
+    {
+      "id": "b2",
+      "title": "Dune",
+      "targetPages": 150,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-10", "page": 75 },
+        { "date": "2026-07-15", "page": 160 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784091600000
+    },
+    {
+      "id": "b3",
+      "title": "Project Hail Mary",
+      "targetPages": null,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-12", "page": 60 }
+      ],
+      "completed": true,
+      "archived": false,
+      "updatedAt": 1783832400000
+    },
+    {
+      "id": "b4",
+      "title": "Atomic Habits",
+      "targetPages": 150,
+      "multiplier": 2,
+      "entries": [
+        { "date": "2026-07-16", "page": 30 },
+        { "date": "2026-07-20", "page": 70 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784523600000
+    },
+    {
+      "id": "b5",
+      "title": "War and Peace",
+      "targetPages": 500,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-11", "page": 90 }
+      ],
+      "completed": false,
+      "archived": true,
+      "updatedAt": 1783745200000
+    },
+    {
+      "id": "b6",
+      "title": "Sapiens",
+      "targetPages": 100,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-09", "page": 55 },
+        { "date": "2026-07-13", "page": 110 }
+      ],
+      "completed": false,
+      "archived": true,
+      "updatedAt": 1783918800000
+    },
+    {
+      "id": "b7",
+      "title": "Untitled Notes",
+      "targetPages": null,
+      "multiplier": 1,
+      "entries": [],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784782800000
+    },
+    {
+      "id": "b8",
+      "title": "Mistborn",
+      "targetPages": null,
+      "multiplier": 1.5,
+      "entries": [
+        { "date": "2026-07-17", "page": 20 },
+        { "date": "2026-07-19", "page": 38 },
+        { "date": "2026-07-20", "page": 45 },
+        { "date": "2026-07-22", "page": 60 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784696400000
+    },
+    {
+      "id": "b9",
+      "title": "The Odyssey",
+      "targetPages": 300,
+      "multiplier": 3,
+      "entries": [
+        { "date": "2026-07-18", "page": 40 }
+      ],
+      "completed": true,
+      "archived": false,
+      "updatedAt": 1784350800000
+    }
+  ],
+  "rewardLabels": {
+    "100": "Fancy coffee",
+    "100_done": true,
+    "200": "New bookmark",
+    "200_done": true,
+    "300": "",
+    "300_done": true,
+    "400": "Movie night",
+    "400_done": false
+  },
+  "exportedFromVersion": "2.1.0"
+}

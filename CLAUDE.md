@@ -9,6 +9,8 @@ Shelfmark is a single-page reading tracker PWA. There is no build system, packag
 ## Development workflow
 
 - There is no build step. Edit `index.html` directly and open it in a browser (or serve the directory, e.g. `python3 -m http.server`) to test changes.
+- To test with a fixed Firebase App Check debug token (avoids re-registering a new token in the Firebase console every run), run `node dev-server.js [port]` (default port 8000) instead. It reads `FIREBASE_APPCHECK_DEBUG_TOKEN` from `.env` and injects it into the served `index.html` in place of the hardcoded `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true`; the file on disk is untouched. `.env` is gitignored.
+- `firebase.json` / `.firebaserc` point the Firebase CLI at the `shelfmark-ce679` project's `firestore.rules`. To publish rule changes, run `firebase deploy --only firestore:rules`.
 - There are no automated tests or linter configured. Verify changes manually in a browser.
 - Whenever a user-visible feature changes, bump `APP_VERSION` and add an entry to `VERSION_HISTORY` at the top of the `<script>` block in `index.html` (search for `/* ---------- version ---------- */`). The version is shown as a footer tag in the UI so old cached copies can be identified.
 - The service worker (`sw.js`) cache-busts on `CACHE_NAME` — bump that string (e.g. `shelfmark-shell-v1` → `v2`) when shell files (`index.html`, `manifest.json`, icons) change, so installed PWA copies pick up updates.

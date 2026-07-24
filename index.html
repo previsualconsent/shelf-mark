@@ -95,11 +95,10 @@
     flex:1; min-width:6px; border-radius:3px 3px 0 0; position:relative;
     transition:height 0.4s ease;
   }
-  .spine .ribbon{
-    position:absolute; top:-9px; left:50%; transform:translateX(-50%);
-    width:0; height:0;
-    border-left:5px solid transparent; border-right:5px solid transparent;
-    border-top:9px solid var(--gold);
+  .spine-archived{ opacity:0.4; }
+  .spine-check{
+    position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+    font-size:11px; color:var(--gold); font-family:'Inter',sans-serif; font-weight:700;
   }
 
   .section-title{
@@ -112,12 +111,22 @@
     box-shadow:0 4px 14px rgba(0,0,0,0.16);
   }
   .book-card{ cursor:pointer; }
+  .book-archived{ opacity:0.6; }
   .book-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .book-title{ font-family:'Fraunces', serif; font-weight:600; font-size:17px; }
+  .completed-check{ color:var(--gold); }
+  .tag-pill{
+    font-family:'Inter', sans-serif; font-size:10px; text-transform:uppercase; letter-spacing:0.6px;
+    color:var(--ink-soft); border:1px solid var(--rule); border-radius:8px; padding:1px 6px; vertical-align:middle;
+  }
   .book-meta{ font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); margin-top:2px;}
   .book-page{ font-family:'Fraunces', serif; font-weight:700; font-size:20px; color:var(--cover); white-space:nowrap;}
   .progress-track{ height:6px; background:var(--rule); border-radius:4px; margin-top:10px; overflow:hidden;}
   .progress-fill{ height:100%; background:var(--gold); border-radius:4px; }
+  .archive-toggle{
+    background:none; border:none; cursor:pointer; font-family:'Inter',sans-serif; font-size:11px;
+    color:var(--gold); text-decoration:underline; padding:0;
+  }
 
   .empty{
     font-family:'Inter', sans-serif; color:var(--page-warm); opacity:0.75; font-size:14px;
@@ -142,6 +151,19 @@
     border-bottom:1px dashed var(--rule); width:100%; padding:2px 0;
   }
   .reward-locked{ opacity:0.45; }
+  .reward-settings{
+    display:flex; align-items:center; gap:8px; padding:0 2px 10px; border-bottom:1px solid var(--rule); margin-bottom:8px;
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft);
+  }
+  .reward-settings input{
+    width:56px; text-align:center; padding:4px 6px; border-radius:6px; border:1px solid var(--rule);
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink);
+  }
+  .reward-toggle{
+    display:block; width:100%; text-align:left; background:none; border:none; cursor:pointer;
+    font-family:'Inter',sans-serif; font-size:11px; color:var(--gold); text-decoration:underline;
+    padding:0 2px 10px;
+  }
 
   .fab{
     position:fixed; right:20px; bottom:24px;
@@ -210,13 +232,19 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.0.0';
+const APP_VERSION = '2.4.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
   { v:'1.2.0', notes:'Added localStorage fallback so the app still saves data when opened outside the Claude artifact runtime (no window.storage).' },
   { v:'1.4.0', notes:'Added in-app version tracking (this footer tag + history log).' },
   { v:'2.0.0', notes:'Cross-device sync via Firestore. Each reader has their own shelf (name + uuid); a device can hold multiple readers via a roster stored locally, added by sharing a link.' },
+  { v:'2.1.0', notes:'Added a completed indicator (auto on target reached, or manual toggle) and an archive/unarchive option; archived books are hidden from the main list by default (toggle to reveal) but still show on the shelf visual.' },
+  { v:'2.1.1', notes:'Removed the decorative gold ribbon marker from shelf spines; the checkmark is now the only completion indicator there.' },
+  { v:'2.2.0', notes:'Sorted "Your books": in-progress first (most recently updated on top), then completed, then archived last.' },
+  { v:'2.3.0', notes:'Rewards list now windows to a few recent milestones plus upcoming ones (with a "show all" toggle) so it does not grow unbounded, and the reward interval (default 100 pages) is now user-configurable.' },
+  { v:'2.4.0', notes:'Consolidated the reward interval, share/add reader, and import/export controls into a single "Options" section on the home screen.' },
+  { v:'2.4.1', notes:'The "Show recent only" rewards window no longer hides a reached milestone until its reward has been checked off, even if it is older than the recent window.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -313,12 +341,13 @@ function showShareLink(uid){
 function loadCachedData(uid){
   try{
     const raw = localStorage.getItem('shelfmark-data-'+uid);
-    if(!raw) return { books: [], rewardLabels: {} };
+    if(!raw) return { books: [], rewardLabels: {}, rewardInterval: 100 };
     const parsed = JSON.parse(raw);
     parsed.books = parsed.books || [];
     parsed.rewardLabels = parsed.rewardLabels || {};
+    parsed.rewardInterval = parsed.rewardInterval || 100;
     return parsed;
-  }catch(e){ return { books: [], rewardLabels: {} }; }
+  }catch(e){ return { books: [], rewardLabels: {}, rewardInterval: 100 }; }
 }
 async function saveData(){
   if(!currentUid) return;
@@ -330,6 +359,7 @@ async function saveData(){
       name: rosterNameFor(currentUid),
       books: data.books,
       rewardLabels: data.rewardLabels,
+      rewardInterval: rewardInterval(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   }catch(e){ console.error('Save failed:', e); }
@@ -340,7 +370,7 @@ function attachListener(uid){
     if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
     const remote = snap.data();
     if(!remote) return;
-    const fresh = { books: remote.books || [], rewardLabels: remote.rewardLabels || {} };
+    const fresh = { books: remote.books || [], rewardLabels: remote.rewardLabels || {}, rewardInterval: remote.rewardInterval || 100 };
     peopleCache[uid] = fresh;
     try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
     if(uid === currentUid) data = fresh;
@@ -360,13 +390,13 @@ function selectPerson(uid){
 }
 async function createReader(name){
   const newUid = personUid();
-  peopleCache[newUid] = { books: [], rewardLabels: {} };
+  peopleCache[newUid] = { books: [], rewardLabels: {}, rewardInterval: 100 };
   roster.push({ name, uid: newUid });
   saveRoster(roster);
   attachListener(newUid);
   if(firebaseReady){
     try{
-      await personDocRef(newUid).set({ name, books: [], rewardLabels: {}, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+      await personDocRef(newUid).set({ name, books: [], rewardLabels: {}, rewardInterval: 100, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
     }catch(e){ console.error('Create reader failed:', e); }
   }
   return newUid;
@@ -384,8 +414,10 @@ let roster = [];
 let peopleCache = {};
 let listeners = {};
 let currentUid = null;
-let data = { books: [], rewardLabels: {} };
+let data = { books: [], rewardLabels: {}, rewardInterval: 100 };
 let view = { screen:'home', bookId:null };
+let showArchived = false;
+let showAllRewards = false;
 
 /* ---------- helpers ---------- */
 function uid(){ return Math.random().toString(36).slice(2,10); }
@@ -407,6 +439,16 @@ function bookEffectivePages(book){
 }
 function totalPagesRead(){
   return data.books.reduce((sum,b)=>sum+bookEffectivePages(b),0);
+}
+function rewardInterval(){
+  const n = parseInt(data.rewardInterval, 10);
+  return (!n || n < 10) ? 100 : n;
+}
+function bookAutoCompleted(book){
+  return !!book.targetPages && bookPagesRead(book) >= book.targetPages;
+}
+function bookIsCompleted(book){
+  return bookAutoCompleted(book) || !!book.completed;
 }
 function sortedEntries(book){
   return [...book.entries].sort((a,b)=> a.date.localeCompare(b.date));
@@ -504,23 +546,6 @@ function openAddReaderSheet(){
   });
 }
 
-function readersCard(){
-  const el = document.createElement('div');
-  el.className = 'card';
-  el.innerHTML = `
-    <div style="font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); margin-bottom:10px;">
-      Reading as <strong>${escapeHtml(rosterNameFor(currentUid))}</strong>. Share this shelf with another device, or add another reader here.
-    </div>
-    <div class="btn-row">
-      <button class="btn btn-secondary" id="btn-share">Share this shelf</button>
-      <button class="btn btn-secondary" id="btn-add-reader">+ Add reader</button>
-    </div>
-  `;
-  el.querySelector('#btn-share').addEventListener('click', ()=> showShareLink(currentUid));
-  el.querySelector('#btn-add-reader').addEventListener('click', openAddReaderSheet);
-  return el;
-}
-
 function renderHome(){
   const wrap = document.createElement('div');
 
@@ -543,7 +568,8 @@ function renderHome(){
   wrap.appendChild(versionTag);
 
   const total = totalPagesRead();
-  const nextMilestone = (Math.floor(total/100)+1)*100;
+  const interval = rewardInterval();
+  const nextMilestone = (Math.floor(total/interval)+1)*interval;
   const shelf = document.createElement('div');
   shelf.className = 'shelf';
 
@@ -552,9 +578,9 @@ function renderHome(){
     const maxPages = Math.max(...data.books.map(bookEffectivePages), 1);
     const h = Math.max(14, Math.round((pages/maxPages)*76));
     const hue = colorForBook(b.id);
-    const hitsMilestone = Math.floor(pages/100) > 0 && pages%100 < 20; // near a milestone marker, decorative
-    return `<div class="spine" style="height:${h}px; background:${hue};">
-      ${pages>0 && Math.floor(pages/100)>=1 ? '<div class="ribbon"></div>' : ''}
+    const completed = bookIsCompleted(b);
+    return `<div class="spine${b.archived?' spine-archived':''}" style="height:${h}px; background:${hue};" title="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}">
+      ${completed ? '<div class="spine-check">✓</div>' : ''}
     </div>`;
   }).join('') : `<div style="flex:1; text-align:center; font-family:Inter,sans-serif; font-size:12px; color:var(--ink-soft); align-self:center;">No books yet</div>`;
 
@@ -564,20 +590,38 @@ function renderHome(){
         <div class="num">${total}</div>
         <div class="label">Total pages read</div>
       </div>
-      <div class="next">${100 - (total%100)} pages to<br>next reward (${nextMilestone})</div>
+      <div class="next">${interval - (total%interval)} pages to<br>next reward (${nextMilestone})</div>
     </div>
     <div class="spines">${spinesHtml}</div>
   `;
   wrap.appendChild(shelf);
 
-  wrap.appendChild(sectionTitle('Your books'));
-  if(data.books.length===0){
+  const archivedCount = data.books.filter(b=>b.archived).length;
+  const booksHeader = document.createElement('div');
+  booksHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; margin:22px 4px 8px;';
+  booksHeader.innerHTML = `
+    <div class="section-title" style="margin:0;">Your books</div>
+    ${archivedCount ? `<button class="archive-toggle">${showArchived?'Hide':'Show'} archived (${archivedCount})</button>` : ''}
+  `;
+  wrap.appendChild(booksHeader);
+  const toggleBtn = booksHeader.querySelector('.archive-toggle');
+  if(toggleBtn){
+    toggleBtn.addEventListener('click', ()=>{ showArchived = !showArchived; render(); });
+  }
+
+  const visibleBooks = data.books.filter(b=>showArchived || !b.archived);
+  if(visibleBooks.length===0){
     const e = document.createElement('div');
     e.className='card empty';
-    e.textContent = 'Tap + to add your first book.';
+    e.textContent = data.books.length===0 ? 'Tap + to add your first book.' : 'No books to show.';
     wrap.appendChild(e);
   } else {
-    data.books.slice().sort((a,b)=>b.updatedAt-a.updatedAt).forEach(b=>{
+    visibleBooks.slice().sort((a,b)=>{
+      if(!!a.archived !== !!b.archived) return a.archived ? 1 : -1;
+      const ca = bookIsCompleted(a), cb = bookIsCompleted(b);
+      if(ca !== cb) return ca ? 1 : -1;
+      return b.updatedAt-a.updatedAt;
+    }).forEach(b=>{
       wrap.appendChild(bookCard(b));
     });
   }
@@ -585,20 +629,30 @@ function renderHome(){
   wrap.appendChild(sectionTitle('Rewards'));
   wrap.appendChild(rewardsCard(total));
 
-  wrap.appendChild(sectionTitle('Readers'));
-  wrap.appendChild(readersCard());
-
-  wrap.appendChild(sectionTitle('Data'));
-  wrap.appendChild(dataCard());
+  wrap.appendChild(sectionTitle('Options'));
+  wrap.appendChild(optionsCard());
 
   return wrap;
 }
 
-function dataCard(){
+function optionsCard(){
   const el = document.createElement('div');
   el.className='card';
+  const interval = rewardInterval();
   el.innerHTML = `
-    <div style="font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); margin-bottom:10px;">
+    <div class="reward-settings">
+      <label for="reward-interval-input">Reward every</label>
+      <input type="number" id="reward-interval-input" inputmode="numeric" min="10" step="10" value="${interval}">
+      <label for="reward-interval-input">pages</label>
+    </div>
+    <div style="font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); margin:14px 0 10px;">
+      Reading as <strong>${escapeHtml(rosterNameFor(currentUid))}</strong>. Share this shelf with another device, or add another reader here.
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="btn-share">Share this shelf</button>
+      <button class="btn btn-secondary" id="btn-add-reader">+ Add reader</button>
+    </div>
+    <div style="font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); margin:14px 0 10px;">
       Back up your books and history to a file, or restore from one.
     </div>
     <div class="btn-row">
@@ -607,6 +661,13 @@ function dataCard(){
     </div>
     <input type="file" id="import-file" accept="application/json" style="display:none;">
   `;
+  el.querySelector('#reward-interval-input').addEventListener('change', (e)=>{
+    const n = parseInt(e.target.value, 10);
+    data.rewardInterval = (!n || n < 10) ? 100 : n;
+    saveData(); render();
+  });
+  el.querySelector('#btn-share').addEventListener('click', ()=> showShareLink(currentUid));
+  el.querySelector('#btn-add-reader').addEventListener('click', openAddReaderSheet);
   el.querySelector('#btn-export').addEventListener('click', exportData);
   const fileInput = el.querySelector('#import-file');
   el.querySelector('#btn-import').addEventListener('click', ()=> fileInput.click());
@@ -643,7 +704,7 @@ function importData(file){
     }
     const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
     if(!proceed) return;
-    data = { books: parsed.books, rewardLabels: parsed.rewardLabels || {} };
+    data = { books: parsed.books, rewardLabels: parsed.rewardLabels || {}, rewardInterval: parsed.rewardInterval || 100 };
     saveData();
     view = {screen:'home'};
     render();
@@ -666,16 +727,17 @@ function sectionTitle(t){
 
 function bookCard(b){
   const el = document.createElement('div');
-  el.className='card book-card';
+  el.className='card book-card'+(b.archived?' book-archived':'');
   const pages = bookPagesRead(b);
   const mult = bookMultiplier(b);
   const effective = bookEffectivePages(b);
   const target = b.targetPages ? b.targetPages : null;
   const pct = target ? Math.min(100, Math.round((pages/target)*100)) : null;
+  const completed = bookIsCompleted(b);
   el.innerHTML = `
     <div class="book-row">
       <div>
-        <div class="book-title">${escapeHtml(b.title)}</div>
+        <div class="book-title">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}${b.archived?' <span class="tag-pill">Archived</span>':''}</div>
         <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${target}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
       </div>
       <div style="text-align:right;">
@@ -684,18 +746,44 @@ function bookCard(b){
       </div>
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
+    ${b.archived ? `<button class="btn btn-secondary btn-unarchive" style="width:100%; margin-top:10px;">Unarchive</button>` : ''}
   `;
   el.addEventListener('click', ()=>{ view = {screen:'book', bookId:b.id}; render(); });
+  const unarchiveBtn = el.querySelector('.btn-unarchive');
+  if(unarchiveBtn){
+    unarchiveBtn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      b.archived = false; b.updatedAt = Date.now();
+      saveData(); render();
+    });
+  }
   return el;
 }
 
 function rewardsCard(total){
   const el = document.createElement('div');
   el.className='card';
-  const milestoneCount = Math.max(5, Math.floor(total/100)+3);
+  const interval = rewardInterval();
+  const lastReachedIndex = Math.floor(total/interval);
+  const milestoneCount = Math.max(5, lastReachedIndex+3);
+
+  let earliestUnchecked = lastReachedIndex+1;
+  for(let i=1;i<=lastReachedIndex;i++){
+    if(!data.rewardLabels[(i*interval)+'_done']){ earliestUnchecked = i; break; }
+  }
+
+  const defaultStart = Math.max(1, lastReachedIndex-1);
+  const windowStart = showAllRewards ? 1 : Math.min(defaultStart, earliestUnchecked);
+  const hiddenCount = windowStart-1;
+
+  let toggleHtml = '';
+  if(hiddenCount > 0 || showAllRewards){
+    toggleHtml = `<button class="reward-toggle">${showAllRewards ? 'Show recent only' : `Show all (${hiddenCount} earlier hidden)`}</button>`;
+  }
+
   let rows = '';
-  for(let i=1;i<=milestoneCount;i++){
-    const milestone = i*100;
+  for(let i=windowStart;i<=milestoneCount;i++){
+    const milestone = i*interval;
     const reached = total >= milestone;
     const done = !!data.rewardLabels[milestone+'_done'];
     const label = data.rewardLabels[milestone] || '';
@@ -710,7 +798,12 @@ function rewardsCard(total){
         </div>
       </div>`;
   }
-  el.innerHTML = rows;
+  el.innerHTML = toggleHtml + rows;
+
+  const toggleBtn = el.querySelector('.reward-toggle');
+  if(toggleBtn){
+    toggleBtn.addEventListener('click', ()=>{ showAllRewards = !showAllRewards; render(); });
+  }
 
   el.querySelectorAll('.reward-check').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -735,9 +828,12 @@ function renderBook(bookId){
   const wrap = document.createElement('div');
   if(!b){ view={screen:'home'}; return renderHome(); }
 
+  const auto = bookAutoCompleted(b);
+  const completed = bookIsCompleted(b);
+
   const header = document.createElement('header');
   header.className='top';
-  header.innerHTML = `<h1 style="font-size:22px;">${escapeHtml(b.title)}</h1>`;
+  header.innerHTML = `<h1 style="font-size:22px;">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}</h1>${b.archived?'<span class="tag-pill">Archived</span>':''}`;
   wrap.appendChild(header);
 
   const pages = bookPagesRead(b);
@@ -783,6 +879,32 @@ function renderBook(bookId){
   navRow.appendChild(editBtn);
 
   wrap.appendChild(navRow);
+
+  const statusRow = document.createElement('div');
+  statusRow.className='btn-row';
+  statusRow.style.marginBottom='14px';
+
+  if(!auto){
+    const finishBtn = document.createElement('button');
+    finishBtn.className='btn btn-secondary';
+    finishBtn.textContent = b.completed ? 'Mark as unfinished' : 'Mark as finished';
+    finishBtn.addEventListener('click', ()=>{
+      b.completed = !b.completed; b.updatedAt = Date.now();
+      saveData(); render();
+    });
+    statusRow.appendChild(finishBtn);
+  }
+
+  const archiveBtn = document.createElement('button');
+  archiveBtn.className='btn btn-secondary';
+  archiveBtn.textContent = b.archived ? 'Unarchive' : 'Archive';
+  archiveBtn.addEventListener('click', ()=>{
+    b.archived = !b.archived; b.updatedAt = Date.now();
+    saveData(); render();
+  });
+  statusRow.appendChild(archiveBtn);
+
+  wrap.appendChild(statusRow);
 
   wrap.appendChild(sectionTitle('History'));
   const histCard = document.createElement('div');
@@ -843,7 +965,7 @@ function openAddBookSheet(){
       const target = parseInt(root.querySelector('#f-target').value, 10);
       const mult = parseFloat(root.querySelector('#f-mult').value);
       if(!title) return;
-      const book = { id:uid(), title, targetPages: isNaN(target)?null:target, multiplier: (isNaN(mult)||mult<1)?1:mult, entries:[], updatedAt:Date.now() };
+      const book = { id:uid(), title, targetPages: isNaN(target)?null:target, multiplier: (isNaN(mult)||mult<1)?1:mult, entries:[], completed:false, archived:false, updatedAt:Date.now() };
       data.books.push(book);
       saveData(); closeSheet(); render();
     });
