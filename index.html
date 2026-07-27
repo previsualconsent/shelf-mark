@@ -100,6 +100,13 @@
     position:absolute; top:-16px; left:50%; transform:translateX(-50%);
     font-size:11px; color:var(--gold); font-family:'Inter',sans-serif; font-weight:700;
   }
+  .spine-label{
+    position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
+    margin-bottom:6px; padding:4px 8px; border-radius:6px;
+    background:var(--ink); color:var(--page); white-space:nowrap;
+    font-family:'Inter',sans-serif; font-size:11px; font-weight:600;
+    pointer-events:none; z-index:5;
+  }
 
   .section-title{
     font-family:'Inter', sans-serif; font-size:11px; text-transform:uppercase;
@@ -272,7 +279,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.6.1';
+const APP_VERSION = '2.6.2';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -289,6 +296,7 @@ const VERSION_HISTORY = [
   { v:'2.5.0', notes:'Reward labels for not-yet-reached milestones can now be typed in ahead of time (shown with a gold-tinted border) so you know what you\'re working toward.' },
   { v:'2.6.0', notes:'Redesigned the rewards list as a vertical stepper with clearer locked/active/completed states, and fixed two low-contrast text issues (gold section header and "show recent" link).' },
   { v:'2.6.1', notes:'Fixed a claimed reward with no label expanding its row height; the next-goal badge now shows a lock icon until reached, and locked rewards that are already reached show a plain ring instead of a lock.' },
+  { v:'2.6.2', notes:'Tapping a shelf spine now shows its book title as a temporary label, since the hover tooltip does not work on touch devices.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -623,7 +631,7 @@ function renderHome(){
     const h = Math.max(14, Math.round((pages/maxPages)*76));
     const hue = colorForBook(b.id);
     const completed = bookIsCompleted(b);
-    return `<div class="spine${b.archived?' spine-archived':''}" style="height:${h}px; background:${hue};" title="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}">
+    return `<div class="spine${b.archived?' spine-archived':''}" data-book-id="${b.id}" data-spine-label="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}" style="height:${h}px; background:${hue};" title="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}">
       ${completed ? '<div class="spine-check">✓</div>' : ''}
     </div>`;
   }).join('') : `<div style="flex:1; text-align:center; font-family:Inter,sans-serif; font-size:12px; color:var(--ink-soft); align-self:center;">No books yet</div>`;
@@ -639,6 +647,20 @@ function renderHome(){
     <div class="spines">${spinesHtml}</div>
   `;
   wrap.appendChild(shelf);
+
+  shelf.querySelectorAll('.spine[data-book-id]').forEach(spine=>{
+    spine.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const existing = spine.querySelector('.spine-label');
+      shelf.querySelectorAll('.spine-label').forEach(l=>l.remove());
+      if(existing) return;
+      const label = document.createElement('div');
+      label.className = 'spine-label';
+      label.textContent = spine.getAttribute('data-spine-label');
+      spine.appendChild(label);
+      setTimeout(()=>label.remove(), 2500);
+    });
+  });
 
   const archivedCount = data.books.filter(b=>b.archived).length;
   const booksHeader = document.createElement('div');
