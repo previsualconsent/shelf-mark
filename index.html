@@ -133,24 +133,69 @@
     text-align:center; padding:26px 10px;
   }
 
+  .rewards-header{
+    display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;
+  }
+  .rewards-title{
+    font-family:'Inter', sans-serif; font-size:13px; font-weight:600; color:var(--ink); margin:0;
+  }
+  .reward-pill{
+    display:flex; align-items:center; gap:6px; border:none; border-radius:999px; cursor:pointer;
+    background:var(--page-warm); color:var(--ink-soft); font-family:'Inter',sans-serif; font-size:11px;
+    padding:5px 10px; flex:none; white-space:nowrap;
+  }
+  .reward-pill .dot{
+    width:7px; height:7px; border-radius:50%; background:var(--ink-soft); opacity:0.35; flex:none;
+  }
+  .reward-pill.on .dot{ background:var(--cover); opacity:1; }
+
   .reward-row{
-    display:flex; align-items:center; gap:12px; padding:10px 2px; border-bottom:1px solid var(--rule);
+    display:flex; align-items:stretch; gap:12px; padding:6px 2px 6px 9px;
+    border-left:3px solid transparent;
   }
-  .reward-row:last-child{ border-bottom:none; }
-  .reward-check{
-    width:24px; height:24px; border-radius:50%; border:2px solid var(--cover); flex:none;
-    display:flex; align-items:center; justify-content:center; font-size:13px; color:var(--page);
-    background:transparent; cursor:pointer;
+  .reward-row.active{ border-left-color:var(--cover); }
+  .reward-node{
+    width:26px; flex:none; display:flex; flex-direction:column; align-items:center;
   }
-  .reward-check.done{ background:var(--cover); }
-  .reward-text{ flex:1; }
+  .reward-badge{
+    width:24px; height:24px; border-radius:50%; flex:none; padding:0;
+    display:flex; align-items:center; justify-content:center; font-size:13px;
+    background:transparent; cursor:pointer; box-sizing:border-box;
+  }
+  .reward-badge.claimed{
+    border:none; background:var(--cover); color:var(--page);
+  }
+  .reward-badge.active-ready{
+    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:pointer;
+  }
+  .reward-badge.active-pending{
+    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:default;
+  }
+  .reward-badge.locked{
+    border:2px solid var(--ink-soft); color:var(--ink-soft); background:transparent; opacity:0.5; cursor:default;
+  }
+  .reward-line{
+    width:2px; flex:1; background:var(--rule); margin:2px 0 -12px;
+  }
+  .reward-line.filled{ background:var(--cover); }
+
+  .reward-body{ flex:1; min-width:0; padding-top:1px; }
   .reward-milestone{ font-family:'Fraunces', serif; font-weight:600; font-size:14px; }
-  .reward-label{ font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); }
-  .reward-label input{
-    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink); border:none; background:transparent;
-    border-bottom:1px dashed var(--rule); width:100%; padding:2px 0;
+  .reward-milestone.active{ color:var(--cover); }
+  .reward-locked .reward-body{ opacity:0.5; }
+
+  .reward-value-row{ display:flex; align-items:center; gap:6px; min-height:26px; margin-top:2px; }
+  .reward-value-text{
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); flex:1; min-width:0;
   }
-  .reward-locked{ opacity:0.45; }
+  .reward-value-text.is-empty{ font-style:italic; }
+  .reward-input{
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink);
+    border:1px solid var(--rule); border-radius:8px; background:var(--page);
+    width:100%; padding:5px 8px; margin-top:2px;
+  }
+  .reward-input:disabled{ cursor:not-allowed; }
+
   .reward-settings{
     display:flex; align-items:center; gap:8px; padding:0 2px 10px; border-bottom:1px solid var(--rule); margin-bottom:8px;
     font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft);
@@ -158,11 +203,6 @@
   .reward-settings input{
     width:56px; text-align:center; padding:4px 6px; border-radius:6px; border:1px solid var(--rule);
     font-family:'Inter', sans-serif; font-size:12px; color:var(--ink);
-  }
-  .reward-toggle{
-    display:block; width:100%; text-align:left; background:none; border:none; cursor:pointer;
-    font-family:'Inter',sans-serif; font-size:11px; color:var(--gold); text-decoration:underline;
-    padding:0 2px 10px;
   }
 
   .fab{
@@ -232,7 +272,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.4.2';
+const APP_VERSION = '2.6.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -246,6 +286,9 @@ const VERSION_HISTORY = [
   { v:'2.4.0', notes:'Consolidated the reward interval, share/add reader, and import/export controls into a single "Options" section on the home screen.' },
   { v:'2.4.1', notes:'The "Show recent only" rewards window no longer hides a reached milestone until its reward has been checked off, even if it is older than the recent window.' },
   { v:'2.4.2', notes:'Fixed a service worker bug that caused it to intercept every network request (including Firestore sync traffic), not just the cached app shell files — this could crash the app on some devices when installed.' },
+  { v:'2.5.0', notes:'Reward labels for not-yet-reached milestones can now be typed in ahead of time (shown with a gold-tinted border) so you know what you\'re working toward.' },
+  { v:'2.6.0', notes:'Redesigned the rewards list as a vertical stepper with clearer locked/active/completed states, and fixed two low-contrast text issues (gold section header and "show recent" link).' },
+  { v:'2.6.1', notes:'Fixed a claimed reward with no label expanding its row height; the next-goal badge now shows a lock icon until reached, and locked rewards that are already reached show a plain ring instead of a lock.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -627,7 +670,6 @@ function renderHome(){
     });
   }
 
-  wrap.appendChild(sectionTitle('Rewards'));
   wrap.appendChild(rewardsCard(total));
 
   wrap.appendChild(sectionTitle('Options'));
@@ -764,6 +806,7 @@ function bookCard(b){
 function rewardsCard(total){
   const el = document.createElement('div');
   el.className='card';
+  el.style.marginTop='22px';
   const interval = rewardInterval();
   const lastReachedIndex = Math.floor(total/interval);
   const milestoneCount = Math.max(5, lastReachedIndex+3);
@@ -777,43 +820,97 @@ function rewardsCard(total){
   const windowStart = showAllRewards ? 1 : Math.min(defaultStart, earliestUnchecked);
   const hiddenCount = windowStart-1;
 
-  let toggleHtml = '';
-  if(hiddenCount > 0 || showAllRewards){
-    toggleHtml = `<button class="reward-toggle">${showAllRewards ? 'Show recent only' : `Show all (${hiddenCount} earlier hidden)`}</button>`;
+  const showToggle = hiddenCount > 0 || showAllRewards;
+  const headerHtml = `
+    <div class="rewards-header">
+      <h3 class="rewards-title">Rewards</h3>
+      ${showToggle ? `<button class="reward-pill ${showAllRewards?'on':''}">
+        <span class="dot"></span>${showAllRewards ? 'Show recent only' : `Show all (${hiddenCount} earlier hidden)`}
+      </button>` : ''}
+    </div>`;
+
+  // Determine per-row state, in ascending order, over the rendered window.
+  // "Active" is the single earliest rendered row that is not yet claimed;
+  // every rendered row after it is Locked, regardless of whether total already covers it.
+  const rowIndices = [];
+  for(let i=windowStart;i<=milestoneCount;i++) rowIndices.push(i);
+  let activeIdx = null;
+  for(const i of rowIndices){
+    const milestone = i*interval;
+    if(!data.rewardLabels[milestone+'_done']){ activeIdx = i; break; }
   }
 
   let rows = '';
-  for(let i=windowStart;i<=milestoneCount;i++){
+  rowIndices.forEach((i, pos)=>{
     const milestone = i*interval;
     const reached = total >= milestone;
     const done = !!data.rewardLabels[milestone+'_done'];
     const label = data.rewardLabels[milestone] || '';
+    let state;
+    if(done) state = 'claimed';
+    else if(activeIdx !== null && i === activeIdx) state = reached ? 'active-ready' : 'active-pending';
+    else state = 'locked';
+
+    let badgeHtml, milestoneClass = '', rowClass = '';
+    if(state === 'claimed'){
+      badgeHtml = `<button class="reward-badge claimed" data-milestone="${milestone}" aria-label="Completed: ${milestone} pages">✓</button>`;
+    } else if(state === 'active-ready'){
+      badgeHtml = `<button class="reward-badge active-ready" data-milestone="${milestone}" aria-label="Reward ready to claim: ${milestone} pages"></button>`;
+      rowClass = 'active'; milestoneClass = 'active';
+    } else if(state === 'active-pending'){
+      badgeHtml = `<button class="reward-badge active-pending" data-milestone="${milestone}" disabled aria-label="Next goal: ${milestone} pages">🔒</button>`;
+      rowClass = 'active'; milestoneClass = 'active';
+    } else {
+      const lockGlyph = reached ? '' : '🔒';
+      badgeHtml = `<button class="reward-badge locked" data-milestone="${milestone}" disabled aria-label="Locked: ${milestone} pages">${lockGlyph}</button>`;
+      rowClass = 'reward-locked';
+    }
+
+    const isLast = pos === rowIndices.length-1;
+    const lineHtml = isLast ? '' : `<div class="reward-line ${state==='claimed'?'filled':''}"></div>`;
+
+    let valueHtml;
+    if(state === 'claimed'){
+      valueHtml = `
+        <div class="reward-value-row">
+          <span class="reward-value-text ${label?'':'is-empty'}">${label?escapeHtml(label):'No reward set'}</span>
+        </div>`;
+    } else {
+      valueHtml = `
+        <div class="reward-value-row">
+          <input type="text" class="reward-input" placeholder="Name your reward…" value="${escapeHtml(label)}" data-label="${milestone}">
+        </div>`;
+    }
+
     rows += `
-      <div class="reward-row ${reached?'':'reward-locked'}">
-        <button class="reward-check ${done?'done':''}" data-milestone="${milestone}" ${reached?'':'disabled'}>${done?'✓':''}</button>
-        <div class="reward-text">
-          <div class="reward-milestone">${milestone} pages</div>
-          <div class="reward-label">
-            <input type="text" placeholder="${reached?'Name your reward…':'Locked'}" value="${escapeHtml(label)}" data-label="${milestone}" ${reached?'':'disabled'}>
-          </div>
+      <div class="reward-row ${rowClass}">
+        <div class="reward-node">
+          ${badgeHtml}
+          ${lineHtml}
+        </div>
+        <div class="reward-body">
+          <div class="reward-milestone ${milestoneClass}">${milestone} pages</div>
+          ${valueHtml}
         </div>
       </div>`;
-  }
-  el.innerHTML = toggleHtml + rows;
+  });
+  el.innerHTML = headerHtml + rows;
 
-  const toggleBtn = el.querySelector('.reward-toggle');
-  if(toggleBtn){
-    toggleBtn.addEventListener('click', ()=>{ showAllRewards = !showAllRewards; render(); });
+  const pillBtn = el.querySelector('.reward-pill');
+  if(pillBtn){
+    pillBtn.addEventListener('click', ()=>{ showAllRewards = !showAllRewards; render(); });
   }
 
-  el.querySelectorAll('.reward-check').forEach(btn=>{
+  el.querySelectorAll('.reward-badge[data-milestone]').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(btn.disabled) return;
       const m = btn.getAttribute('data-milestone');
       const key = m+'_done';
       data.rewardLabels[key] = !data.rewardLabels[key];
       saveData(); render();
     });
   });
+
   el.querySelectorAll('input[data-label]').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       const m = inp.getAttribute('data-label');
@@ -821,6 +918,7 @@ function rewardsCard(total){
       saveData();
     });
   });
+
   return el;
 }
 
