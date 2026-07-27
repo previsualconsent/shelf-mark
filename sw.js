@@ -3,7 +3,7 @@
    localStorage, so this worker doesn't need real offline logic. It only
    caches the static app-shell files with a basic cache-first strategy. */
 
-const CACHE_NAME = 'shelfmark-shell-v8';
+const CACHE_NAME = 'shelfmark-shell-v9';
 const SHELL_FILES = [
   './',
   './index.html',
@@ -30,7 +30,9 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  const isShellFile = SHELL_FILES.some((f) => event.request.url.endsWith(f.replace('./', '')));
+  const url = new URL(event.request.url);
+  const isShellFile = url.origin === self.location.origin &&
+    SHELL_FILES.some((f) => url.pathname.endsWith(f === './' ? '/' : f.replace('./', '/')));
   if (!isShellFile) return; // let everything else (Firestore, fonts, etc.) pass through untouched
 
   event.respondWith(

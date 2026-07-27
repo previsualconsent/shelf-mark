@@ -232,7 +232,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.4.1';
+const APP_VERSION = '2.4.2';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -245,6 +245,7 @@ const VERSION_HISTORY = [
   { v:'2.3.0', notes:'Rewards list now windows to a few recent milestones plus upcoming ones (with a "show all" toggle) so it does not grow unbounded, and the reward interval (default 100 pages) is now user-configurable.' },
   { v:'2.4.0', notes:'Consolidated the reward interval, share/add reader, and import/export controls into a single "Options" section on the home screen.' },
   { v:'2.4.1', notes:'The "Show recent only" rewards window no longer hides a reached milestone until its reward has been checked off, even if it is older than the recent window.' },
+  { v:'2.4.2', notes:'Fixed a service worker bug that caused it to intercept every network request (including Firestore sync traffic), not just the cached app shell files — this could crash the app on some devices when installed.' },
 ];
 
 /* ---------- firebase ---------- */
