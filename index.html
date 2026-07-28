@@ -397,6 +397,20 @@ function showShareLink(uid){
 }
 
 /* ---------- storage (per-reader, Firestore + localStorage mirror) ---------- */
+/* Readers loaded from a dev fixture (see loadDevFixture below) are flagged
+   here so saveData/attachListener never touch Firestore for them, even
+   across reloads within the same dev session. */
+const DEV_NOSYNC_KEY = 'shelfmark-dev-nosync';
+function isDevNoSync(uid){
+  try{ return JSON.parse(localStorage.getItem(DEV_NOSYNC_KEY) || '[]').includes(uid); }catch(e){ return false; }
+}
+function markDevNoSync(uid){
+  try{
+    const list = new Set(JSON.parse(localStorage.getItem(DEV_NOSYNC_KEY) || '[]'));
+    list.add(uid);
+    localStorage.setItem(DEV_NOSYNC_KEY, JSON.stringify([...list]));
+  }catch(e){}
+}
 function loadCachedData(uid){
   try{
     const raw = localStorage.getItem('shelfmark-data-'+uid);
@@ -412,7 +426,7 @@ async function saveData(){
   if(!currentUid) return;
   peopleCache[currentUid] = data;
   try{ localStorage.setItem('shelfmark-data-'+currentUid, JSON.stringify(data)); }catch(e){}
-  if(!firebaseReady) return;
+  if(!firebaseReady || isDevNoSync(currentUid)) return;
   try{
     await personDocRef(currentUid).set({
       name: rosterNameFor(currentUid),
@@ -424,7 +438,7 @@ async function saveData(){
   }catch(e){ console.error('Save failed:', e); }
 }
 function attachListener(uid){
-  if(!firebaseReady || listeners[uid]) return;
+  if(!firebaseReady || listeners[uid] || isDevNoSync(uid)) return;
   listeners[uid] = personDocRef(uid).onSnapshot(snap=>{
     if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
     const remote = snap.data();
@@ -467,6 +481,46 @@ async function ensureInitialReader(){
     name = (prompt('Welcome to Shelfmark! Whose reading shelf is this?') || '').trim();
   }
   await createReader(name);
+}
+
+/* Dev-only data loading: open with ?dev=<fixture> (e.g. ?dev=huge-total) to
+   jump straight into a reader preloaded from dev-fixtures/<fixture>.json,
+   skipping manual data entry and the roster/welcome prompts. Re-opening the
+   same fixture always resets that reader back to the fixture's file contents.
+   Restricted to localhost/127.0.0.1 so it can never fire on the deployed site,
+   and the reader is Firestore-disabled so test data never syncs to real data. */
+async function loadDevFixture(){
+  if(!isLocalDev) return false;
+  const fixture = new URLSearchParams(location.search).get('dev');
+  if(!fixture) return false;
+
+  let payload;
+  try{
+    const res = await fetch(`./dev-fixtures/${fixture}.json`);
+    if(!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+    payload = await res.json();
+  }catch(e){
+    console.error(`Dev fixture "${fixture}" failed to load:`, e);
+    return false;
+  }
+
+  const uid = 'dev-'+fixture;
+  const fixtureData = {
+    books: payload.books || [],
+    rewardLabels: payload.rewardLabels || {},
+    rewardInterval: payload.rewardInterval || 100,
+  };
+  if(!roster.some(r=>r.uid===uid)){
+    roster.push({ name: `Dev: ${fixture}`, uid });
+    saveRoster(roster);
+  }
+  markDevNoSync(uid);
+  peopleCache[uid] = fixtureData;
+  try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fixtureData)); }catch(e){}
+  currentUid = uid;
+  data = fixtureData;
+  view = { screen:'home', bookId:null };
+  return true;
 }
 
 let roster = [];
@@ -1201,15 +1255,18 @@ async function init(){
   document.getElementById('app').innerHTML = `<div style="padding:60px 20px; text-align:center; font-family:'Inter',sans-serif; color:var(--page-warm); opacity:0.8;">Loading your shelf…</div>`;
   mergeIncomingAddParam();
   roster = loadRoster();
-  await ensureInitialReader();
+  const devLoaded = await loadDevFixture();
+  if(!devLoaded) await ensureInitialReader();
   roster.forEach(r=>{
-    peopleCache[r.uid] = loadCachedData(r.uid);
+    if(!peopleCache[r.uid]) peopleCache[r.uid] = loadCachedData(r.uid);
     attachListener(r.uid);
   });
-  if(roster.length <= 1){
-    selectPerson(roster[0].uid);
-  } else {
-    view = { screen:'roster' };
+  if(!devLoaded){
+    if(roster.length <= 1){
+      selectPerson(roster[0].uid);
+    } else {
+      view = { screen:'roster' };
+    }
   }
   render();
 }

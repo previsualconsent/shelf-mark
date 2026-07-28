@@ -14,6 +14,7 @@ Shelfmark is a single-page reading tracker PWA. There is no build system, packag
 - There are no automated tests or linter configured. Verify changes manually in a browser.
 - Whenever a user-visible feature changes, bump `APP_VERSION` and add an entry to `VERSION_HISTORY` at the top of the `<script>` block in `index.html` (search for `/* ---------- version ---------- */`). The version is shown as a footer tag in the UI so old cached copies can be identified.
 - The service worker (`sw.js`) cache-busts on `CACHE_NAME` — bump that string (e.g. `shelfmark-shell-v1` → `v2`) when shell files (`index.html`, `manifest.json`, icons) change, so installed PWA copies pick up updates.
+- To open the app preloaded with a specific set of test data (no manual data entry, no Firestore sync), open `http://localhost:8000/?dev=<fixture>`, where `<fixture>` is a JSON file under `dev-fixtures/` (e.g. `?dev=huge-total` loads `dev-fixtures/huge-total.json`). This only works when served from `localhost`/`127.0.0.1` (see `isLocalDev`/`loadDevFixture` in `index.html`). Each fixture becomes its own roster reader (`dev-<fixture>`), flagged in localStorage (`shelfmark-dev-nosync`) so `saveData`/`attachListener` never touch Firestore for it; re-opening the same `?dev=` URL always resets that reader back to the fixture file's contents. Fixture files use the same shape as `exportData()`'s output (`{ books, rewardLabels, rewardInterval }`).
 
 ## Architecture
 

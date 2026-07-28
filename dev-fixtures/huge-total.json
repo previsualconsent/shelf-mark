@@ -1,0 +1,27 @@
+{
+  "books": [
+    {
+      "id": "b1",
+      "title": "Typo Total Repro",
+      "targetPages": 200,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-20", "page": 50 },
+        { "date": "2026-07-27", "page": 550 },
+        { "date": "2026-07-28", "page": 99999999 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784350800000
+    }
+  ],
+  "rewardLabels": {
+    "100": "",
+    "100_done": true,
+    "200": "Movie night",
+    "200_done": true,
+    "300": "New headphones",
+    "300_done": false
+  },
+  "rewardInterval": 100
+}
