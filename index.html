@@ -186,6 +186,11 @@
   }
   .reward-line.filled{ background:var(--cover); }
 
+  .reward-gap-row .reward-node{ width:26px; }
+  .reward-gap-text{
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); padding-top:4px;
+  }
+
   .reward-body{ flex:1; min-width:0; padding-top:1px; }
   .reward-milestone{ font-family:'Fraunces', serif; font-weight:600; font-size:14px; }
   .reward-milestone.active{ color:var(--cover); }
@@ -279,7 +284,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.6.2';
+const APP_VERSION = '2.6.3';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -297,6 +302,7 @@ const VERSION_HISTORY = [
   { v:'2.6.0', notes:'Redesigned the rewards list as a vertical stepper with clearer locked/active/completed states, and fixed two low-contrast text issues (gold section header and "show recent" link).' },
   { v:'2.6.1', notes:'Fixed a claimed reward with no label expanding its row height; the next-goal badge now shows a lock icon until reached, and locked rewards that are already reached show a plain ring instead of a lock.' },
   { v:'2.6.2', notes:'Tapping a shelf spine now shows its book title as a temporary label, since the hover tooltip does not work on touch devices.' },
+  { v:'2.6.3', notes:'Fixed the rewards list freezing the app when an implausibly large "current page" is logged: the earliest unclaimed reward is now pinned as a single row (with a "N more in between" divider) instead of expanding the rendered range all the way to it, which used to try to render one row per skipped milestone.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -833,14 +839,27 @@ function rewardsCard(total){
   const lastReachedIndex = Math.floor(total/interval);
   const milestoneCount = Math.max(5, lastReachedIndex+3);
 
+  // Rendering is capped so a mistakenly huge "current page" entry (which can
+  // push lastReachedIndex into the millions) can never flood the DOM with one
+  // row per milestone. The earliest unclaimed reward must still always be
+  // visible (see v2.4.1) — since only the single earliest-unclaimed badge is
+  // ever clickable, hiding it from the rendered set would make it impossible
+  // to claim. So instead of expanding the rendered range to cover the whole
+  // gap up to it, pin it as one extra row above the recent window.
+  const MAX_ROWS = 200;
+  const SCAN_CAP = 5000; // far beyond any realistic number of manually-claimed rewards
+
   let earliestUnchecked = lastReachedIndex+1;
-  for(let i=1;i<=lastReachedIndex;i++){
+  for(let i=1;i<=Math.min(lastReachedIndex, SCAN_CAP);i++){
     if(!data.rewardLabels[(i*interval)+'_done']){ earliestUnchecked = i; break; }
   }
 
   const defaultStart = Math.max(1, lastReachedIndex-1);
-  const windowStart = showAllRewards ? 1 : Math.min(defaultStart, earliestUnchecked);
-  const hiddenCount = windowStart-1;
+  const recentStart = showAllRewards ? 1 : defaultStart;
+  const contiguousStart = Math.max(recentStart, milestoneCount - MAX_ROWS + 1);
+  const pinEarliest = earliestUnchecked < contiguousStart;
+  const gapCount = pinEarliest ? contiguousStart - earliestUnchecked - 1 : 0;
+  const hiddenCount = pinEarliest ? earliestUnchecked - 1 : contiguousStart - 1;
 
   const showToggle = hiddenCount > 0 || showAllRewards;
   const headerHtml = `
@@ -854,8 +873,8 @@ function rewardsCard(total){
   // Determine per-row state, in ascending order, over the rendered window.
   // "Active" is the single earliest rendered row that is not yet claimed;
   // every rendered row after it is Locked, regardless of whether total already covers it.
-  const rowIndices = [];
-  for(let i=windowStart;i<=milestoneCount;i++) rowIndices.push(i);
+  const rowIndices = pinEarliest ? [earliestUnchecked] : [];
+  for(let i=contiguousStart;i<=milestoneCount;i++) rowIndices.push(i);
   let activeIdx = null;
   for(const i of rowIndices){
     const milestone = i*interval;
@@ -915,6 +934,16 @@ function rewardsCard(total){
           ${valueHtml}
         </div>
       </div>`;
+
+    if(pinEarliest && pos === 0 && gapCount > 0){
+      rows += `
+        <div class="reward-row reward-gap-row">
+          <div class="reward-node"><div class="reward-line"></div></div>
+          <div class="reward-body">
+            <div class="reward-gap-text">${gapCount} more reward${gapCount===1?'':'s'} in between — claim this one first</div>
+          </div>
+        </div>`;
+    }
   });
   el.innerHTML = headerHtml + rows;
 
