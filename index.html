@@ -284,7 +284,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.6.3';
+const APP_VERSION = '2.6.4';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -303,6 +303,7 @@ const VERSION_HISTORY = [
   { v:'2.6.1', notes:'Fixed a claimed reward with no label expanding its row height; the next-goal badge now shows a lock icon until reached, and locked rewards that are already reached show a plain ring instead of a lock.' },
   { v:'2.6.2', notes:'Tapping a shelf spine now shows its book title as a temporary label, since the hover tooltip does not work on touch devices.' },
   { v:'2.6.3', notes:'Fixed the rewards list freezing the app when an implausibly large "current page" is logged: the earliest unclaimed reward is now pinned as a single row (with a "N more in between" divider) instead of expanding the rendered range all the way to it, which used to try to render one row per skipped milestone.' },
+  { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -837,15 +838,10 @@ function rewardsCard(total){
   el.style.marginTop='22px';
   const interval = rewardInterval();
   const lastReachedIndex = Math.floor(total/interval);
-  const milestoneCount = Math.max(5, lastReachedIndex+3);
 
   // Rendering is capped so a mistakenly huge "current page" entry (which can
   // push lastReachedIndex into the millions) can never flood the DOM with one
-  // row per milestone. The earliest unclaimed reward must still always be
-  // visible (see v2.4.1) — since only the single earliest-unclaimed badge is
-  // ever clickable, hiding it from the rendered set would make it impossible
-  // to claim. So instead of expanding the rendered range to cover the whole
-  // gap up to it, pin it as one extra row above the recent window.
+  // row per milestone.
   const MAX_ROWS = 200;
   const SCAN_CAP = 5000; // far beyond any realistic number of manually-claimed rewards
 
@@ -854,12 +850,36 @@ function rewardsCard(total){
     if(!data.rewardLabels[(i*interval)+'_done']){ earliestUnchecked = i; break; }
   }
 
-  const defaultStart = Math.max(1, lastReachedIndex-1);
-  const recentStart = showAllRewards ? 1 : defaultStart;
-  const contiguousStart = Math.max(recentStart, milestoneCount - MAX_ROWS + 1);
-  const pinEarliest = earliestUnchecked < contiguousStart;
-  const gapCount = pinEarliest ? contiguousStart - earliestUnchecked - 1 : 0;
-  const hiddenCount = pinEarliest ? earliestUnchecked - 1 : contiguousStart - 1;
+  // Milestones from earliestUnchecked through lastReachedIndex have been
+  // reached but not claimed yet — this is normally just the current one, but
+  // can stack up if the total jumps ahead by more than one interval without
+  // claiming in between.
+  const unclaimedLast = Math.max(earliestUnchecked, lastReachedIndex);
+  const milestoneCount = unclaimedLast + 3; // always show a few upcoming locked rewards
+
+  let rowIndices, hiddenCount, gapAfterPos, gapCount;
+  if(showAllRewards){
+    const contiguousStart = Math.max(1, milestoneCount - MAX_ROWS + 1);
+    const pinEarliest = earliestUnchecked < contiguousStart;
+    rowIndices = pinEarliest ? [earliestUnchecked] : [];
+    for(let i=contiguousStart;i<=milestoneCount;i++) rowIndices.push(i);
+    hiddenCount = pinEarliest ? earliestUnchecked-1 : contiguousStart-1;
+    gapAfterPos = 0;
+    gapCount = pinEarliest ? contiguousStart - earliestUnchecked - 1 : 0;
+  } else {
+    // Collapsed view: the current unclaimed reward, up to three more
+    // unclaimed rewards behind it, the rest of the unclaimed backlog
+    // collapsed behind a count, then the upcoming locked rewards.
+    const SHOWN_UNCLAIMED = 4; // current + up to three more
+    const shownUnclaimedEnd = Math.min(unclaimedLast, earliestUnchecked + SHOWN_UNCLAIMED - 1);
+    rowIndices = [];
+    for(let i=earliestUnchecked;i<=shownUnclaimedEnd;i++) rowIndices.push(i);
+    const hiddenUnclaimedCount = unclaimedLast - shownUnclaimedEnd;
+    gapAfterPos = rowIndices.length - 1;
+    gapCount = hiddenUnclaimedCount;
+    for(let i=unclaimedLast+1;i<=milestoneCount;i++) rowIndices.push(i);
+    hiddenCount = (earliestUnchecked-1) + hiddenUnclaimedCount;
+  }
 
   const showToggle = hiddenCount > 0 || showAllRewards;
   const headerHtml = `
@@ -873,8 +893,6 @@ function rewardsCard(total){
   // Determine per-row state, in ascending order, over the rendered window.
   // "Active" is the single earliest rendered row that is not yet claimed;
   // every rendered row after it is Locked, regardless of whether total already covers it.
-  const rowIndices = pinEarliest ? [earliestUnchecked] : [];
-  for(let i=contiguousStart;i<=milestoneCount;i++) rowIndices.push(i);
   let activeIdx = null;
   for(const i of rowIndices){
     const milestone = i*interval;
@@ -935,12 +953,12 @@ function rewardsCard(total){
         </div>
       </div>`;
 
-    if(pinEarliest && pos === 0 && gapCount > 0){
+    if(pos === gapAfterPos && gapCount > 0){
       rows += `
         <div class="reward-row reward-gap-row">
           <div class="reward-node"><div class="reward-line"></div></div>
           <div class="reward-body">
-            <div class="reward-gap-text">${gapCount} more reward${gapCount===1?'':'s'} in between — claim this one first</div>
+            <div class="reward-gap-text">${gapCount} more unclaimed reward${gapCount===1?'':'s'} waiting</div>
           </div>
         </div>`;
     }
