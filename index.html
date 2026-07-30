@@ -280,6 +280,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
+<script src="calc.js"></script>
 <script>
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
@@ -539,20 +540,6 @@ function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
 }
-function bookPagesRead(book){
-  if(!book.entries.length) return 0;
-  return Math.max(...book.entries.map(e=>e.page));
-}
-function bookMultiplier(book){
-  const m = parseFloat(book.multiplier);
-  return (!m || m < 1) ? 1 : m;
-}
-function bookEffectivePages(book){
-  return Math.round(bookPagesRead(book) * bookMultiplier(book));
-}
-function totalPagesRead(){
-  return data.books.reduce((sum,b)=>sum+bookEffectivePages(b),0);
-}
 function rewardInterval(){
   const n = parseInt(data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
@@ -680,7 +667,7 @@ function renderHome(){
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
 
-  const total = totalPagesRead();
+  const total = totalPagesRead(data.books);
   const interval = rewardInterval();
   const nextMilestone = (Math.floor(total/interval)+1)*interval;
   const shelf = document.createElement('div');
