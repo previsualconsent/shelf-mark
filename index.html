@@ -360,7 +360,7 @@ function saveRoster(list){
   try{ localStorage.setItem(ROSTER_KEY, JSON.stringify(list)); }catch(e){}
 }
 function rosterNameFor(uid){
-  const r = roster.find(x=>x.uid===uid);
+  const r = store.roster.find(x=>x.uid===uid);
   return r ? r.name : 'Reader';
 }
 function personUid(){
@@ -423,49 +423,49 @@ function loadCachedData(uid){
   }catch(e){ return { books: [], rewardLabels: {}, rewardInterval: 100 }; }
 }
 async function saveData(){
-  if(!currentUid) return;
-  peopleCache[currentUid] = data;
-  try{ localStorage.setItem('shelfmark-data-'+currentUid, JSON.stringify(data)); }catch(e){}
-  if(!firebaseReady || isDevNoSync(currentUid)) return;
+  if(!store.currentUid) return;
+  store.peopleCache[store.currentUid] = store.data;
+  try{ localStorage.setItem('shelfmark-data-'+store.currentUid, JSON.stringify(store.data)); }catch(e){}
+  if(!firebaseReady || isDevNoSync(store.currentUid)) return;
   try{
-    await personDocRef(currentUid).set({
-      name: rosterNameFor(currentUid),
-      books: data.books,
-      rewardLabels: data.rewardLabels,
+    await personDocRef(store.currentUid).set({
+      name: rosterNameFor(store.currentUid),
+      books: store.data.books,
+      rewardLabels: store.data.rewardLabels,
       rewardInterval: rewardInterval(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
   }catch(e){ console.error('Save failed:', e); }
 }
 function attachListener(uid){
-  if(!firebaseReady || listeners[uid] || isDevNoSync(uid)) return;
-  listeners[uid] = personDocRef(uid).onSnapshot(snap=>{
+  if(!firebaseReady || store.listeners[uid] || isDevNoSync(uid)) return;
+  store.listeners[uid] = personDocRef(uid).onSnapshot(snap=>{
     if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
     const remote = snap.data();
     if(!remote) return;
     const fresh = { books: remote.books || [], rewardLabels: remote.rewardLabels || {}, rewardInterval: remote.rewardInterval || 100 };
-    peopleCache[uid] = fresh;
+    store.peopleCache[uid] = fresh;
     try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
-    if(uid === currentUid) data = fresh;
+    if(uid === store.currentUid) store.data = fresh;
     render();
   }, err=> console.error('Snapshot error for', uid, err));
 }
 function personTotalPages(uid){
-  const pd = peopleCache[uid];
+  const pd = store.peopleCache[uid];
   if(!pd) return 0;
   return (pd.books||[]).reduce((sum,b)=>sum+bookEffectivePages(b),0);
 }
 function selectPerson(uid){
-  currentUid = uid;
-  if(!peopleCache[uid]) peopleCache[uid] = loadCachedData(uid);
-  data = peopleCache[uid];
-  view = { screen:'home', bookId:null };
+  store.currentUid = uid;
+  if(!store.peopleCache[uid]) store.peopleCache[uid] = loadCachedData(uid);
+  store.data = store.peopleCache[uid];
+  store.view = { screen:'home', bookId:null };
 }
 async function createReader(name){
   const newUid = personUid();
-  peopleCache[newUid] = { books: [], rewardLabels: {}, rewardInterval: 100 };
-  roster.push({ name, uid: newUid });
-  saveRoster(roster);
+  store.peopleCache[newUid] = { books: [], rewardLabels: {}, rewardInterval: 100 };
+  store.roster.push({ name, uid: newUid });
+  saveRoster(store.roster);
   attachListener(newUid);
   if(firebaseReady){
     try{
@@ -475,7 +475,7 @@ async function createReader(name){
   return newUid;
 }
 async function ensureInitialReader(){
-  if(roster.length > 0) return;
+  if(store.roster.length > 0) return;
   let name = '';
   while(!name){
     name = (prompt('Welcome to Shelfmark! Whose reading shelf is this?') || '').trim();
@@ -510,25 +510,27 @@ async function loadDevFixture(){
     rewardLabels: payload.rewardLabels || {},
     rewardInterval: payload.rewardInterval || 100,
   };
-  if(!roster.some(r=>r.uid===uid)){
-    roster.push({ name: `Dev: ${fixture}`, uid });
-    saveRoster(roster);
+  if(!store.roster.some(r=>r.uid===uid)){
+    store.roster.push({ name: `Dev: ${fixture}`, uid });
+    saveRoster(store.roster);
   }
   markDevNoSync(uid);
-  peopleCache[uid] = fixtureData;
+  store.peopleCache[uid] = fixtureData;
   try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fixtureData)); }catch(e){}
-  currentUid = uid;
-  data = fixtureData;
-  view = { screen:'home', bookId:null };
+  store.currentUid = uid;
+  store.data = fixtureData;
+  store.view = { screen:'home', bookId:null };
   return true;
 }
 
-let roster = [];
-let peopleCache = {};
-let listeners = {};
-let currentUid = null;
-let data = { books: [], rewardLabels: {}, rewardInterval: 100 };
-let view = { screen:'home', bookId:null };
+const store = {
+  roster: [],
+  peopleCache: {},
+  listeners: {},
+  currentUid: null,
+  data: { books: [], rewardLabels: {}, rewardInterval: 100 },
+  view: { screen:'home', bookId:null },
+};
 let showArchived = false;
 let showAllRewards = false;
 
@@ -551,10 +553,10 @@ function bookEffectivePages(book){
   return Math.round(bookPagesRead(book) * bookMultiplier(book));
 }
 function totalPagesRead(){
-  return data.books.reduce((sum,b)=>sum+bookEffectivePages(b),0);
+  return store.data.books.reduce((sum,b)=>sum+bookEffectivePages(b),0);
 }
 function rewardInterval(){
-  const n = parseInt(data.rewardInterval, 10);
+  const n = parseInt(store.data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
 }
 function bookAutoCompleted(book){
@@ -571,10 +573,10 @@ function sortedEntries(book){
 function render(){
   const app = document.getElementById('app');
   app.innerHTML = '';
-  if(view.screen==='roster') app.appendChild(renderRoster());
-  else if(view.screen==='home') app.appendChild(renderHome());
-  else if(view.screen==='book') app.appendChild(renderBook(view.bookId));
-  document.getElementById('fab').style.display = view.screen==='home' ? 'flex' : 'none';
+  if(store.view.screen==='roster') app.appendChild(renderRoster());
+  else if(store.view.screen==='home') app.appendChild(renderHome());
+  else if(store.view.screen==='book') app.appendChild(renderBook(store.view.bookId));
+  document.getElementById('fab').style.display = store.view.screen==='home' ? 'flex' : 'none';
 }
 
 function renderRoster(){
@@ -591,7 +593,7 @@ function renderRoster(){
   wrap.appendChild(versionTag);
 
   wrap.appendChild(sectionTitle('Readers'));
-  roster.forEach(r=>{
+  store.roster.forEach(r=>{
     const el = document.createElement('div');
     el.className = 'card book-card';
     const total = personTotalPages(r.uid);
@@ -651,7 +653,7 @@ function openAddReaderSheet(){
       if(!name) return;
       const newUid = await createReader(name);
       closeSheet();
-      view = { screen:'roster' };
+      store.view = { screen:'roster' };
       render();
       showShareLink(newUid);
     });
@@ -662,11 +664,11 @@ function openAddReaderSheet(){
 function renderHome(){
   const wrap = document.createElement('div');
 
-  if(roster.length > 1){
+  if(store.roster.length > 1){
     const back = document.createElement('button');
     back.className = 'back-link';
     back.textContent = '← Readers';
-    back.addEventListener('click', ()=>{ view = { screen:'roster' }; render(); });
+    back.addEventListener('click', ()=>{ store.view = { screen:'roster' }; render(); });
     wrap.appendChild(back);
   }
 
@@ -686,9 +688,9 @@ function renderHome(){
   const shelf = document.createElement('div');
   shelf.className = 'shelf';
 
-  const spinesHtml = data.books.length ? data.books.map(b=>{
+  const spinesHtml = store.data.books.length ? store.data.books.map(b=>{
     const pages = bookEffectivePages(b);
-    const maxPages = Math.max(...data.books.map(bookEffectivePages), 1);
+    const maxPages = Math.max(...store.data.books.map(bookEffectivePages), 1);
     const h = Math.max(14, Math.round((pages/maxPages)*76));
     const hue = colorForBook(b.id);
     const completed = bookIsCompleted(b);
@@ -723,7 +725,7 @@ function renderHome(){
     });
   });
 
-  const archivedCount = data.books.filter(b=>b.archived).length;
+  const archivedCount = store.data.books.filter(b=>b.archived).length;
   const booksHeader = document.createElement('div');
   booksHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; margin:22px 4px 8px;';
   booksHeader.innerHTML = `
@@ -736,11 +738,11 @@ function renderHome(){
     toggleBtn.addEventListener('click', ()=>{ showArchived = !showArchived; render(); });
   }
 
-  const visibleBooks = data.books.filter(b=>showArchived || !b.archived);
+  const visibleBooks = store.data.books.filter(b=>showArchived || !b.archived);
   if(visibleBooks.length===0){
     const e = document.createElement('div');
     e.className='card empty';
-    e.textContent = data.books.length===0 ? 'Tap + to add your first book.' : 'No books to show.';
+    e.textContent = store.data.books.length===0 ? 'Tap + to add your first book.' : 'No books to show.';
     wrap.appendChild(e);
   } else {
     visibleBooks.slice().sort((a,b)=>{
@@ -772,7 +774,7 @@ function optionsCard(){
       <label for="reward-interval-input">pages</label>
     </div>
     <div style="font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-soft); margin:14px 0 10px;">
-      Reading as <strong>${escapeHtml(rosterNameFor(currentUid))}</strong>. Share this shelf with another device, or add another reader here.
+      Reading as <strong>${escapeHtml(rosterNameFor(store.currentUid))}</strong>. Share this shelf with another device, or add another reader here.
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" id="btn-share">Share this shelf</button>
@@ -789,10 +791,10 @@ function optionsCard(){
   `;
   el.querySelector('#reward-interval-input').addEventListener('change', (e)=>{
     const n = parseInt(e.target.value, 10);
-    data.rewardInterval = (!n || n < 10) ? 100 : n;
+    store.data.rewardInterval = (!n || n < 10) ? 100 : n;
     saveData(); render();
   });
-  el.querySelector('#btn-share').addEventListener('click', ()=> showShareLink(currentUid));
+  el.querySelector('#btn-share').addEventListener('click', ()=> showShareLink(store.currentUid));
   el.querySelector('#btn-add-reader').addEventListener('click', openAddReaderSheet);
   el.querySelector('#btn-export').addEventListener('click', exportData);
   const fileInput = el.querySelector('#import-file');
@@ -806,7 +808,7 @@ function optionsCard(){
 }
 
 function exportData(){
-  const payload = JSON.stringify({ ...data, exportedFromVersion: APP_VERSION }, null, 2);
+  const payload = JSON.stringify({ ...store.data, exportedFromVersion: APP_VERSION }, null, 2);
   const blob = new Blob([payload], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -830,9 +832,9 @@ function importData(file){
     }
     const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
     if(!proceed) return;
-    data = { books: parsed.books, rewardLabels: parsed.rewardLabels || {}, rewardInterval: parsed.rewardInterval || 100 };
+    store.data = { books: parsed.books, rewardLabels: parsed.rewardLabels || {}, rewardInterval: parsed.rewardInterval || 100 };
     saveData();
-    view = {screen:'home'};
+    store.view = {screen:'home'};
     render();
     alert('Import complete.');
   };
@@ -874,7 +876,7 @@ function bookCard(b){
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
     ${b.archived ? `<button class="btn btn-secondary btn-unarchive" style="width:100%; margin-top:10px;">Unarchive</button>` : ''}
   `;
-  el.addEventListener('click', ()=>{ view = {screen:'book', bookId:b.id}; render(); });
+  el.addEventListener('click', ()=>{ store.view = {screen:'book', bookId:b.id}; render(); });
   const unarchiveBtn = el.querySelector('.btn-unarchive');
   if(unarchiveBtn){
     unarchiveBtn.addEventListener('click', (e)=>{
@@ -901,7 +903,7 @@ function rewardsCard(total){
 
   let earliestUnchecked = lastReachedIndex+1;
   for(let i=1;i<=Math.min(lastReachedIndex, SCAN_CAP);i++){
-    if(!data.rewardLabels[(i*interval)+'_done']){ earliestUnchecked = i; break; }
+    if(!store.data.rewardLabels[(i*interval)+'_done']){ earliestUnchecked = i; break; }
   }
 
   // Milestones from earliestUnchecked through lastReachedIndex have been
@@ -950,15 +952,15 @@ function rewardsCard(total){
   let activeIdx = null;
   for(const i of rowIndices){
     const milestone = i*interval;
-    if(!data.rewardLabels[milestone+'_done']){ activeIdx = i; break; }
+    if(!store.data.rewardLabels[milestone+'_done']){ activeIdx = i; break; }
   }
 
   let rows = '';
   rowIndices.forEach((i, pos)=>{
     const milestone = i*interval;
     const reached = total >= milestone;
-    const done = !!data.rewardLabels[milestone+'_done'];
-    const label = data.rewardLabels[milestone] || '';
+    const done = !!store.data.rewardLabels[milestone+'_done'];
+    const label = store.data.rewardLabels[milestone] || '';
     let state;
     if(done) state = 'claimed';
     else if(activeIdx !== null && i === activeIdx) state = reached ? 'active-ready' : 'active-pending';
@@ -1029,7 +1031,7 @@ function rewardsCard(total){
       if(btn.disabled) return;
       const m = btn.getAttribute('data-milestone');
       const key = m+'_done';
-      data.rewardLabels[key] = !data.rewardLabels[key];
+      store.data.rewardLabels[key] = !store.data.rewardLabels[key];
       saveData(); render();
     });
   });
@@ -1037,7 +1039,7 @@ function rewardsCard(total){
   el.querySelectorAll('input[data-label]').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       const m = inp.getAttribute('data-label');
-      data.rewardLabels[m] = inp.value;
+      store.data.rewardLabels[m] = inp.value;
       saveData();
     });
   });
@@ -1046,9 +1048,9 @@ function rewardsCard(total){
 }
 
 function renderBook(bookId){
-  const b = data.books.find(x=>x.id===bookId);
+  const b = store.data.books.find(x=>x.id===bookId);
   const wrap = document.createElement('div');
-  if(!b){ view={screen:'home'}; return renderHome(); }
+  if(!b){ store.view={screen:'home'}; return renderHome(); }
 
   const auto = bookAutoCompleted(b);
   const completed = bookIsCompleted(b);
@@ -1091,7 +1093,7 @@ function renderBook(bookId){
   const backBtn = document.createElement('button');
   backBtn.className='btn btn-secondary';
   backBtn.textContent='← Books';
-  backBtn.addEventListener('click', ()=>{ view={screen:'home'}; render(); });
+  backBtn.addEventListener('click', ()=>{ store.view={screen:'home'}; render(); });
   navRow.appendChild(backBtn);
 
   const editBtn = document.createElement('button');
@@ -1188,7 +1190,7 @@ function openAddBookSheet(){
       const mult = parseFloat(root.querySelector('#f-mult').value);
       if(!title) return;
       const book = { id:uid(), title, targetPages: isNaN(target)?null:target, multiplier: (isNaN(mult)||mult<1)?1:mult, entries:[], completed:false, archived:false, updatedAt:Date.now() };
-      data.books.push(book);
+      store.data.books.push(book);
       saveData(); closeSheet(); render();
     });
     root.querySelector('#f-title').focus();
@@ -1196,7 +1198,7 @@ function openAddBookSheet(){
 }
 
 function openBookEditSheet(bookId){
-  const b = data.books.find(x=>x.id===bookId);
+  const b = store.data.books.find(x=>x.id===bookId);
   openSheet(`
     <h2>Edit book</h2>
     <div class="field"><label>Title</label><input id="f-title" type="text" value="${escapeHtml(b.title)}"></div>
@@ -1219,15 +1221,15 @@ function openBookEditSheet(bookId){
     });
     root.querySelector('#f-delete').addEventListener('click', ()=>{
       if(confirm('Delete "'+b.title+'" and all its history?')){
-        data.books = data.books.filter(x=>x.id!==bookId);
-        saveData(); closeSheet(); view={screen:'home'}; render();
+        store.data.books = store.data.books.filter(x=>x.id!==bookId);
+        saveData(); closeSheet(); store.view={screen:'home'}; render();
       }
     });
   });
 }
 
 function openEntrySheet(bookId){
-  const b = data.books.find(x=>x.id===bookId);
+  const b = store.data.books.find(x=>x.id===bookId);
   openSheet(`
     <h2>Log progress — ${escapeHtml(b.title)}</h2>
     <div class="field"><label>Date</label><input id="f-date" type="date" value="${todayStr()}"></div>
@@ -1254,18 +1256,18 @@ function openEntrySheet(bookId){
 async function init(){
   document.getElementById('app').innerHTML = `<div style="padding:60px 20px; text-align:center; font-family:'Inter',sans-serif; color:var(--page-warm); opacity:0.8;">Loading your shelf…</div>`;
   mergeIncomingAddParam();
-  roster = loadRoster();
+  store.roster = loadRoster();
   const devLoaded = await loadDevFixture();
   if(!devLoaded) await ensureInitialReader();
-  roster.forEach(r=>{
-    if(!peopleCache[r.uid]) peopleCache[r.uid] = loadCachedData(r.uid);
+  store.roster.forEach(r=>{
+    if(!store.peopleCache[r.uid]) store.peopleCache[r.uid] = loadCachedData(r.uid);
     attachListener(r.uid);
   });
   if(!devLoaded){
-    if(roster.length <= 1){
-      selectPerson(roster[0].uid);
+    if(store.roster.length <= 1){
+      selectPerson(store.roster[0].uid);
     } else {
-      view = { screen:'roster' };
+      store.view = { screen:'roster' };
     }
   }
   render();
