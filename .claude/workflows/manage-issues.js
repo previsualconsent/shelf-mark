@@ -51,11 +51,14 @@ function issueNumberFromBranch(branch) {
   return m ? Number(m[1]) : null
 }
 
+const issueNumbers = new Set(discovery.issues.map(i => i.number))
 const prByIssue = new Map()
 const unmatchedPrs = []
 for (const pr of discovery.prs) {
   const n = issueNumberFromBranch(pr.headRefName)
-  if (n == null) {
+  if (n == null || !issueNumbers.has(n)) {
+    unmatchedPrs.push(pr)
+  } else if (prByIssue.has(n)) {
     unmatchedPrs.push(pr)
   } else {
     prByIssue.set(n, pr)
