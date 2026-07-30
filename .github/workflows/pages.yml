@@ -23,7 +23,7 @@ jobs:
       - name: Stage publishable files
         run: |
           mkdir site
-          cp index.html sw.js manifest.json site/
+          cp index.html sw.js manifest.json styles.css site/
           cp icon-192.png icon-512.png icon-512-maskable.png site/
       - uses: actions/upload-pages-artifact@v3
         with:
