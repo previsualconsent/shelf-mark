@@ -819,13 +819,25 @@ function exportData(){
   URL.revokeObjectURL(url);
 }
 
+function isValidBookEntry(e){
+  return !!e && typeof e === 'object' && typeof e.date === 'string' && typeof e.page === 'number' && !isNaN(e.page);
+}
+function isValidBook(b){
+  if(!b || typeof b !== 'object') return false;
+  if(typeof b.id !== 'string' || !b.id) return false;
+  if(typeof b.title !== 'string' || !b.title.trim()) return false;
+  if(!Array.isArray(b.entries) || !b.entries.every(isValidBookEntry)) return false;
+  if(b.targetPages != null && (typeof b.targetPages !== 'number' || isNaN(b.targetPages))) return false;
+  if(b.multiplier != null && (typeof b.multiplier !== 'number' || isNaN(b.multiplier))) return false;
+  return true;
+}
 function importData(file){
   const reader = new FileReader();
   reader.onload = ()=>{
     let parsed;
     try{ parsed = JSON.parse(reader.result); }
     catch(e){ alert('That file isn\'t valid Shelfmark data (couldn\'t read it as JSON).'); return; }
-    if(!parsed || !Array.isArray(parsed.books)){
+    if(!parsed || !Array.isArray(parsed.books) || !parsed.books.every(isValidBook)){
       alert('That file isn\'t valid Shelfmark data.'); return;
     }
     const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
