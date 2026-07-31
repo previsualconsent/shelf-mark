@@ -300,6 +300,16 @@ function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
 }
+function fmtNum(n){
+  if(n>=1000000) return (n/1000000).toFixed(1)+'M';
+  if(n>=10000){
+    const k = Math.round(n/1000);
+    // Rounding up to 1000k means we've crossed into millions territory.
+    if(k>=1000) return (n/1000000).toFixed(1)+'M';
+    return k+'k';
+  }
+  return String(n);
+}
 function rewardInterval(){
   const n = parseInt(store.data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
@@ -385,10 +395,10 @@ function renderRoster(){
       <div class="book-row">
         <div>
           <div class="book-title">${escapeHtml(r.name)}</div>
-          <div class="book-meta">${total} pages read</div>
+          <div class="book-meta">${fmtNum(total)} pages read</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <div class="book-page">${total}p</div>
+          <div class="book-page">${fmtNum(total)}p</div>
           <button class="del-x" data-share="${r.uid}" title="Share link" style="font-size:18px;">🔗</button>
         </div>
       </div>`;
@@ -489,10 +499,10 @@ function renderHome(){
   shelf.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${total}</div>
+        <div class="num">${fmtNum(total)}</div>
         <div class="label">Total pages read</div>
       </div>
-      <div class="next">${interval - (total%interval)} pages to<br>next reward (${nextMilestone})</div>
+      <div class="next">${fmtNum(interval - (total%interval))} pages to<br>next reward (${fmtNum(nextMilestone)})</div>
     </div>
     <div class="spines">${spinesHtml}</div>
   `;
@@ -668,11 +678,11 @@ function bookCard(b){
     <div class="book-row">
       <div>
         <div class="book-title">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}${b.archived?' <span class="tag-pill">Archived</span>':''}</div>
-        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${target}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
+        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${fmtNum(target)}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
       </div>
       <div style="text-align:right;">
-        <div class="book-page">${pages}p</div>
-        ${mult>1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${effective}p counted</div>`:''}
+        <div class="book-page">${fmtNum(pages)}p</div>
+        ${mult>1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${fmtNum(effective)}p counted</div>`:''}
       </div>
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
@@ -806,7 +816,7 @@ function rewardsCard(total){
           ${lineHtml}
         </div>
         <div class="reward-body">
-          <div class="reward-milestone ${milestoneClass}">${milestone} pages</div>
+          <div class="reward-milestone ${milestoneClass}">${fmtNum(milestone)} pages</div>
           ${valueHtml}
         </div>
       </div>`;
@@ -875,10 +885,10 @@ function renderBook(bookId){
   summary.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${pages}</div>
-        <div class="label">Pages read${target?` of ${target}`:''}</div>
+        <div class="num">${fmtNum(pages)}</div>
+        <div class="label">Pages read${target?` of ${fmtNum(target)}`:''}</div>
       </div>
-      ${mult>1 ? `<div class="next">${mult}× bonus<br>= ${effective}p counted</div>` : ''}
+      ${mult>1 ? `<div class="next">${mult}× bonus<br>= ${fmtNum(effective)}p counted</div>` : ''}
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
   `;
