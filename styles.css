@@ -231,6 +231,10 @@
     padding:20px 20px 26px; max-height:85vh; overflow-y:auto;
   }
   .sheet h2{ font-family:'Fraunces',serif; font-size:20px; margin:0 0 14px; }
+  .last-entry-hint{
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft);
+    margin:-8px 0 14px;
+  }
   .field{ margin-bottom:14px; }
   .field label{ display:block; font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-soft); margin-bottom:5px;}
   .field input{

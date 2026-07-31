@@ -1045,8 +1045,13 @@ function openBookEditSheet(bookId){
 
 function openEntrySheet(bookId){
   const b = store.data.books.find(x=>x.id===bookId);
+  // Use >= (not >) so that when multiple entries share the same date, the
+  // most recently *added* one (later in the array) wins the tie, rather than
+  // whichever happened to be encountered first by reduce.
+  const lastEntry = b.entries.length ? b.entries.reduce((a,e)=> e.date>=a.date?e:a) : null;
   openSheet(`
     <h2>Log progress — ${escapeHtml(b.title)}</h2>
+    ${lastEntry ? `<div class="last-entry-hint">Last logged: p.${lastEntry.page} · ${fmtDate(lastEntry.date)}</div>` : ''}
     <div class="field"><label>Date</label><input id="f-date" type="date" value="${todayStr()}"></div>
     <div class="field">
       <label>Page you're on</label>
