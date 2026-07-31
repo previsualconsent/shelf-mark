@@ -185,7 +185,12 @@ async function saveData(){
       rewardInterval: rewardInterval(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-  }catch(e){ console.error('Save failed:', e); }
+    if(store.syncError){ store.syncError = null; render(); }
+  }catch(e){
+    console.error('Save failed:', e);
+    store.syncError = 'Sync failed — changes saved on this device only.';
+    render();
+  }
 }
 function attachListener(uid){
   if(!firebaseReady || store.listeners[uid] || isDevNoSync(uid)) return;
@@ -220,7 +225,10 @@ async function createReader(name){
   if(firebaseReady){
     try{
       await personDocRef(newUid).set({ name, books: [], rewardLabels: {}, rewardInterval: 100, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-    }catch(e){ console.error('Create reader failed:', e); }
+    }catch(e){
+      console.error('Create reader failed:', e);
+      store.syncError = 'Sync failed — new reader saved on this device only.';
+    }
   }
   return newUid;
 }
@@ -280,6 +288,7 @@ const store = {
   currentUid: null,
   data: { books: [], rewardLabels: {}, rewardInterval: 100 },
   view: { screen:'home', bookId:null },
+  syncError: null,
 };
 let showArchived = false;
 let showAllRewards = false;
@@ -341,6 +350,16 @@ function render(){
   document.getElementById('fab').style.display = store.view.screen==='home' ? 'flex' : 'none';
 }
 
+function syncErrorBanner(){
+  if(!store.syncError) return null;
+  const syncTag = document.createElement('div');
+  syncTag.className = 'sync-error-tag';
+  syncTag.setAttribute('role', 'status');
+  syncTag.setAttribute('aria-live', 'polite');
+  syncTag.textContent = `⚠ ${store.syncError}`;
+  return syncTag;
+}
+
 function renderRoster(){
   const wrap = document.createElement('div');
 
@@ -353,6 +372,9 @@ function renderRoster(){
   versionTag.className = 'version-tag';
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
+
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
 
   wrap.appendChild(sectionTitle('Readers'));
   store.roster.forEach(r=>{
@@ -443,6 +465,9 @@ function renderHome(){
   versionTag.className = 'version-tag';
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
+
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
 
   const total = totalPagesRead(store.data.books);
   const interval = rewardInterval();
@@ -836,6 +861,9 @@ function renderBook(bookId){
   header.className='top';
   header.innerHTML = `<h1 style="font-size:22px;">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}</h1>${b.archived?'<span class="tag-pill">Archived</span>':''}`;
   wrap.appendChild(header);
+
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
 
   const pages = bookPagesRead(b);
   const mult = bookMultiplier(b);

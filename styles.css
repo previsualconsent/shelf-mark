@@ -50,6 +50,16 @@
     text-align:center;
     padding:2px 0 4px;
   }
+  .sync-error-tag{
+    font-family:'Inter', sans-serif;
+    font-size:11px;
+    color:var(--danger);
+    background:rgba(166,80,60,0.12);
+    border-radius:8px;
+    text-align:center;
+    padding:6px 10px;
+    margin-bottom:10px;
+  }
 
   /* Signature element: the shelf */
   .shelf{
