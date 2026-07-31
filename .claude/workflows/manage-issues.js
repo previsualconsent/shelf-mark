@@ -90,7 +90,30 @@ function reviewerPrompt(issue, prNumber) {
     `Never merge the PR.\n\nIssue body:\n${issue.body}\n\nReport {action, comments} describing what you did.`
 }
 
+const FIXER_SCHEMA = {
+  type: 'object',
+  properties: {
+    ok: { type: 'boolean' },
+    prNumber: { type: 'number' },
+    summary: { type: 'string' },
+  },
+  required: ['ok', 'summary'],
+}
+
+function newIssueFixerPrompt(issue) {
+  return `In the shelf-mark repo, implement issue #${issue.number} ("${issue.title}"):\n\n${issue.body}\n\n` +
+    `Create branch issue-${issue.number}-<slug> (choose a short slug from the title), implement the change, commit, push the branch, ` +
+    `and open a PR with \`gh pr create\` that references "#${issue.number}" in its body. ` +
+    `Report {ok, prNumber, summary} — ok is false if you could not complete this.`
+}
+
 phase('Triage')
+const fixed = await pipeline(
+  noPrPairs,
+  issue => agent(newIssueFixerPrompt(issue), { label: `fixer:issue-${issue.number}`, phase: 'Triage', schema: FIXER_SCHEMA })
+    .then(result => ({ issue, result }))
+)
+
 const reviewed = await pipeline(
   openPrPairs,
   ({ issue, pr }) => agent(reviewerPrompt(issue, pr.number), { label: `reviewer:pr-${pr.number}`, phase: 'Triage', schema: REVIEWER_SCHEMA })
@@ -98,4 +121,4 @@ const reviewed = await pipeline(
 )
 
 phase('Report')
-return { noPrPairs, reviewed, unmatchedPrs }
+return { fixed, reviewed, unmatchedPrs }
