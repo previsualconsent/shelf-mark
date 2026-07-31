@@ -815,14 +815,13 @@ function rewardsCard(total){
     if(state === 'claimed'){
       badgeHtml = `<button class="reward-badge claimed" data-milestone="${milestone}" aria-label="Completed: ${milestone} pages">✓</button>`;
     } else if(state === 'active-ready'){
-      badgeHtml = `<button class="reward-badge active-ready" data-milestone="${milestone}" aria-label="Reward ready to claim: ${milestone} pages"></button>`;
-      rowClass = 'active'; milestoneClass = 'active';
+      badgeHtml = `<button class="reward-badge active-ready" data-milestone="${milestone}" aria-label="Reward ready to claim: ${milestone} pages">★</button>`;
+      rowClass = 'active reward-tinted'; milestoneClass = 'active';
     } else if(state === 'active-pending'){
-      badgeHtml = `<button class="reward-badge active-pending" data-milestone="${milestone}" disabled aria-label="Next goal: ${milestone} pages">🔒</button>`;
+      badgeHtml = `<button class="reward-badge active-pending" data-milestone="${milestone}" disabled aria-label="Next goal: ${milestone} pages">●</button>`;
       rowClass = 'active'; milestoneClass = 'active';
     } else {
-      const lockGlyph = reached ? '' : '🔒';
-      badgeHtml = `<button class="reward-badge locked" data-milestone="${milestone}" disabled aria-label="Locked: ${milestone} pages">${lockGlyph}</button>`;
+      badgeHtml = `<button class="reward-badge locked" data-milestone="${milestone}" disabled aria-label="Locked: ${milestone} pages"></button>`;
       rowClass = 'reward-locked';
     }
 
