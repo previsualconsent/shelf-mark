@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.7.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -54,7 +54,6 @@ const VERSION_HISTORY = [
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
   { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
   { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
-  { v:'2.8.0', notes:'Firestore write failures (saving progress, creating a reader) are no longer silent: a visible "sync failed" banner now appears on the roster/home screens when a write doesn\'t reach the server, and clears automatically once a save succeeds.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -351,6 +350,16 @@ function render(){
   document.getElementById('fab').style.display = store.view.screen==='home' ? 'flex' : 'none';
 }
 
+function syncErrorBanner(){
+  if(!store.syncError) return null;
+  const syncTag = document.createElement('div');
+  syncTag.className = 'sync-error-tag';
+  syncTag.setAttribute('role', 'status');
+  syncTag.setAttribute('aria-live', 'polite');
+  syncTag.textContent = `⚠ ${store.syncError}`;
+  return syncTag;
+}
+
 function renderRoster(){
   const wrap = document.createElement('div');
 
@@ -364,12 +373,8 @@ function renderRoster(){
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
 
-  if(store.syncError){
-    const syncTag = document.createElement('div');
-    syncTag.className = 'sync-error-tag';
-    syncTag.textContent = `⚠ ${store.syncError}`;
-    wrap.appendChild(syncTag);
-  }
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
 
   wrap.appendChild(sectionTitle('Readers'));
   store.roster.forEach(r=>{
@@ -461,12 +466,8 @@ function renderHome(){
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
 
-  if(store.syncError){
-    const syncTag = document.createElement('div');
-    syncTag.className = 'sync-error-tag';
-    syncTag.textContent = `⚠ ${store.syncError}`;
-    wrap.appendChild(syncTag);
-  }
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
 
   const total = totalPagesRead(store.data.books);
   const interval = rewardInterval();
@@ -860,6 +861,9 @@ function renderBook(bookId){
   header.className='top';
   header.innerHTML = `<h1 style="font-size:22px;">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}</h1>${b.archived?'<span class="tag-pill">Archived</span>':''}`;
   wrap.appendChild(header);
+
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
 
   const pages = bookPagesRead(b);
   const mult = bookMultiplier(b);
