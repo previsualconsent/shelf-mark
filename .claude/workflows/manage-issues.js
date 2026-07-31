@@ -114,10 +114,29 @@ const fixed = await pipeline(
     .then(result => ({ issue, result }))
 )
 
+function reviewFixerPrompt(issue, prNumber, comments) {
+  return `In the shelf-mark repo, on the branch backing PR #${prNumber} (which resolves issue #${issue.number}), ` +
+    `address this reviewer feedback with a follow-up commit and push it — do not force-push over existing commits: ${comments}. ` +
+    `Report {ok, prNumber, summary}.`
+}
+
+async function reviewWithFixLoop(issue, prNumber) {
+  let rounds = 0
+  let review = null
+  while (rounds < 10) {
+    review = await agent(reviewerPrompt(issue, prNumber), { label: `reviewer:pr-${prNumber}:r${rounds}`, phase: 'Triage', schema: REVIEWER_SCHEMA })
+    if (review.action !== 'request_changes') break
+    const fix = await agent(reviewFixerPrompt(issue, prNumber, review.comments), { label: `fixer:pr-${prNumber}:r${rounds}`, phase: 'Triage', schema: FIXER_SCHEMA })
+    rounds++
+    if (!fix.ok) break
+  }
+  const status = review.action === 'approve' ? 'ready_to_merge' : 'needs_input'
+  return { issue, prNumber, rounds, action: review.action, comments: review.comments, status }
+}
+
 const reviewed = await pipeline(
   openPrPairs,
-  ({ issue, pr }) => agent(reviewerPrompt(issue, pr.number), { label: `reviewer:pr-${pr.number}`, phase: 'Triage', schema: REVIEWER_SCHEMA })
-    .then(review => ({ issue, prNumber: pr.number, review }))
+  ({ issue, pr }) => reviewWithFixLoop(issue, pr.number)
 )
 
 phase('Report')
