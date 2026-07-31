@@ -1119,6 +1119,7 @@ function openEntrySheet(bookId){
   // most recently *added* one (later in the array) wins the tie, rather than
   // whichever happened to be encountered first by reduce.
   const lastEntry = b.entries.length ? b.entries.reduce((a,e)=> e.date>=a.date?e:a) : null;
+  const basePages = bookPagesRead(b);
   openSheet(`
     <h2>Log progress — ${escapeHtml(b.title)}</h2>
     ${lastEntry ? `<div class="last-entry-hint">Last logged: p.${lastEntry.page} · ${fmtDate(lastEntry.date)}</div>` : ''}
@@ -1128,7 +1129,7 @@ function openEntrySheet(bookId){
       <div class="stepper-row">
         <button type="button" class="stepper-btn" data-step="-10">−10</button>
         <button type="button" class="stepper-btn" data-step="-1">−1</button>
-        <input id="f-page" class="stepper-input" type="number" inputmode="numeric" placeholder="e.g. 145">
+        <input id="f-page" class="stepper-input" type="number" inputmode="numeric" placeholder="${basePages}">
         <button type="button" class="stepper-btn" data-step="1">+1</button>
         <button type="button" class="stepper-btn" data-step="10">+10</button>
       </div>
@@ -1140,7 +1141,6 @@ function openEntrySheet(bookId){
     </div>
   `, (root)=>{
     const hasPriorEntries = b.entries.length > 0;
-    const basePages = bookPagesRead(b);
     const deltaEl = root.querySelector('#f-page-delta');
     const pageInput = root.querySelector('#f-page');
     const updateDeltaHint = ()=>{
@@ -1153,7 +1153,8 @@ function openEntrySheet(bookId){
     root.querySelectorAll('.stepper-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const step = parseInt(btn.getAttribute('data-step'), 10);
-        const current = parseInt(pageInput.value, 10) || 0;
+        const typed = parseInt(pageInput.value, 10);
+        const current = isNaN(typed) ? basePages : typed;
         pageInput.value = Math.max(0, current + step);
         updateDeltaHint();
       });
