@@ -280,11 +280,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
+<script src="calc.js"></script>
 <script>
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.6.5';
+const APP_VERSION = '2.7.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -304,7 +305,8 @@ const VERSION_HISTORY = [
   { v:'2.6.2', notes:'Tapping a shelf spine now shows its book title as a temporary label, since the hover tooltip does not work on touch devices.' },
   { v:'2.6.3', notes:'Fixed the rewards list freezing the app when an implausibly large "current page" is logged: the earliest unclaimed reward is now pinned as a single row (with a "N more in between" divider) instead of expanding the rendered range all the way to it, which used to try to render one row per skipped milestone.' },
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
-  { v:'2.6.5', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
+  { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
+  { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -418,7 +420,7 @@ function loadCachedData(uid){
     if(!raw) return { books: [], rewardLabels: {}, rewardInterval: 100 };
     const parsed = JSON.parse(raw);
     parsed.books = parsed.books || [];
-    parsed.rewardLabels = parsed.rewardLabels || {};
+    parsed.rewardLabels = normalizeRewardLabels(parsed.rewardLabels || {});
     parsed.rewardInterval = parsed.rewardInterval || 100;
     return parsed;
   }catch(e){ return { books: [], rewardLabels: {}, rewardInterval: 100 }; }
@@ -444,7 +446,7 @@ function attachListener(uid){
     if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
     const remote = snap.data();
     if(!remote) return;
-    const fresh = { books: remote.books || [], rewardLabels: remote.rewardLabels || {}, rewardInterval: remote.rewardInterval || 100 };
+    const fresh = { books: remote.books || [], rewardLabels: normalizeRewardLabels(remote.rewardLabels || {}), rewardInterval: remote.rewardInterval || 100 };
     peopleCache[uid] = fresh;
     try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
     if(uid === currentUid) data = fresh;
@@ -508,7 +510,7 @@ async function loadDevFixture(){
   const uid = 'dev-'+fixture;
   const fixtureData = {
     books: payload.books || [],
-    rewardLabels: payload.rewardLabels || {},
+    rewardLabels: normalizeRewardLabels(payload.rewardLabels || {}),
     rewardInterval: payload.rewardInterval || 100,
   };
   if(!roster.some(r=>r.uid===uid)){
@@ -540,20 +542,6 @@ function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
 }
-function bookPagesRead(book){
-  if(!book.entries.length) return 0;
-  return Math.max(...book.entries.map(e=>e.page));
-}
-function bookMultiplier(book){
-  const m = parseFloat(book.multiplier);
-  return (!m || m < 1) ? 1 : m;
-}
-function bookEffectivePages(book){
-  return Math.round(bookPagesRead(book) * bookMultiplier(book));
-}
-function totalPagesRead(){
-  return data.books.reduce((sum,b)=>sum+bookEffectivePages(b),0);
-}
 function rewardInterval(){
   const n = parseInt(data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
@@ -566,6 +554,32 @@ function bookIsCompleted(book){
 }
 function sortedEntries(book){
   return [...book.entries].sort((a,b)=> a.date.localeCompare(b.date));
+}
+/* Migrates the old dual-key rewardLabels shape ({ [milestone]: label,
+   [milestone+'_done']: bool }) to the nested { [milestone]: { label, done } }
+   shape. Safe to run on already-migrated data (a no-op pass-through). */
+function normalizeRewardLabels(raw){
+  const out = {};
+  Object.keys(raw).forEach(key=>{
+    if(key.endsWith('_done')){
+      const milestone = key.slice(0, -'_done'.length);
+      out[milestone] = out[milestone] || { label:'', done:false };
+      out[milestone].done = !!raw[key];
+    } else {
+      const val = raw[key];
+      if(val && typeof val === 'object'){
+        out[key] = { label: val.label || '', done: !!val.done };
+      } else {
+        out[key] = out[key] || { label:'', done:false };
+        out[key].label = val || '';
+      }
+    }
+  });
+  return out;
+}
+function getOrCreateReward(milestone){
+  if(!data.rewardLabels[milestone]) data.rewardLabels[milestone] = { label:'', done:false };
+  return data.rewardLabels[milestone];
 }
 
 /* ---------- rendering ---------- */
@@ -681,7 +695,7 @@ function renderHome(){
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
 
-  const total = totalPagesRead();
+  const total = totalPagesRead(data.books);
   const interval = rewardInterval();
   const nextMilestone = (Math.floor(total/interval)+1)*interval;
   const shelf = document.createElement('div');
@@ -846,7 +860,7 @@ function importData(file){
     }
     const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
     if(!proceed) return;
-    data = { books: parsed.books, rewardLabels: isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}, rewardInterval: parsed.rewardInterval || 100 };
+    data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
     saveData();
     view = {screen:'home'};
     render();
@@ -917,7 +931,7 @@ function rewardsCard(total){
 
   let earliestUnchecked = lastReachedIndex+1;
   for(let i=1;i<=Math.min(lastReachedIndex, SCAN_CAP);i++){
-    if(!data.rewardLabels[(i*interval)+'_done']){ earliestUnchecked = i; break; }
+    if(!(data.rewardLabels[i*interval] && data.rewardLabels[i*interval].done)){ earliestUnchecked = i; break; }
   }
 
   // Milestones from earliestUnchecked through lastReachedIndex have been
@@ -966,15 +980,15 @@ function rewardsCard(total){
   let activeIdx = null;
   for(const i of rowIndices){
     const milestone = i*interval;
-    if(!data.rewardLabels[milestone+'_done']){ activeIdx = i; break; }
+    if(!(data.rewardLabels[milestone] && data.rewardLabels[milestone].done)){ activeIdx = i; break; }
   }
 
   let rows = '';
   rowIndices.forEach((i, pos)=>{
     const milestone = i*interval;
     const reached = total >= milestone;
-    const done = !!data.rewardLabels[milestone+'_done'];
-    const label = data.rewardLabels[milestone] || '';
+    const done = !!(data.rewardLabels[milestone] && data.rewardLabels[milestone].done);
+    const label = (data.rewardLabels[milestone] && data.rewardLabels[milestone].label) || '';
     let state;
     if(done) state = 'claimed';
     else if(activeIdx !== null && i === activeIdx) state = reached ? 'active-ready' : 'active-pending';
@@ -1044,8 +1058,8 @@ function rewardsCard(total){
     btn.addEventListener('click', ()=>{
       if(btn.disabled) return;
       const m = btn.getAttribute('data-milestone');
-      const key = m+'_done';
-      data.rewardLabels[key] = !data.rewardLabels[key];
+      const entry = getOrCreateReward(m);
+      entry.done = !entry.done;
       saveData(); render();
     });
   });
@@ -1053,7 +1067,7 @@ function rewardsCard(total){
   el.querySelectorAll('input[data-label]').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       const m = inp.getAttribute('data-label');
-      data.rewardLabels[m] = inp.value;
+      getOrCreateReward(m).label = inp.value;
       saveData();
     });
   });
