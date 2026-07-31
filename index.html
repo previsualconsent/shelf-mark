@@ -1132,19 +1132,30 @@ function openEntrySheet(bookId){
         <button type="button" class="stepper-btn" data-step="1">+1</button>
         <button type="button" class="stepper-btn" data-step="10">+10</button>
       </div>
+      <div id="f-page-delta" class="delta-hint"></div>
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Save entry</button>
     </div>
   `, (root)=>{
-    root.querySelector('#f-cancel').addEventListener('click', closeSheet);
+    const hasPriorEntries = b.entries.length > 0;
+    const basePages = bookPagesRead(b);
+    const deltaEl = root.querySelector('#f-page-delta');
     const pageInput = root.querySelector('#f-page');
+    const updateDeltaHint = ()=>{
+      const typed = parseInt(pageInput.value, 10);
+      const delta = typed - basePages;
+      deltaEl.textContent = (hasPriorEntries && !isNaN(typed) && delta > 0) ? `+${delta} pages since last entry` : '';
+    };
+    pageInput.addEventListener('input', updateDeltaHint);
+    root.querySelector('#f-cancel').addEventListener('click', closeSheet);
     root.querySelectorAll('.stepper-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const step = parseInt(btn.getAttribute('data-step'), 10);
         const current = parseInt(pageInput.value, 10) || 0;
         pageInput.value = Math.max(0, current + step);
+        updateDeltaHint();
       });
     });
     root.querySelector('#f-save').addEventListener('click', ()=>{
