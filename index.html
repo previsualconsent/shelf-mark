@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.14.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -54,6 +54,15 @@ const VERSION_HISTORY = [
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
   { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
   { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
+  { v:'2.8.0', notes:'Surfaced a visible banner when a Firestore write fails, instead of failing silently and leaving local and synced data out of sync.' },
+  { v:'2.8.1', notes:'Abbreviated large page counts (e.g. 12.3k) so they no longer overflow shelf cards.' },
+  { v:'2.9.0', notes:'Replaced the native number-spinner arrows on page inputs with a tap-friendly ±1/±10 stepper.' },
+  { v:'2.10.0', notes:'The log progress sheet now shows the last-logged page and date for context while entering a new one.' },
+  { v:'2.11.0', notes:'Added a milestone celebration sheet that appears when a logged entry crosses a reward threshold.' },
+  { v:'2.12.0', notes:'The log progress sheet now shows a live "+N pages since last entry" hint as you type.' },
+  { v:'2.13.0', notes:'Gave the rewards stepper 4 visually distinct badge states (locked, active, claimed, claimed-unlabeled).' },
+  { v:'2.14.0', notes:'Book detail now surfaces reading pace and a projected finish date based on recent entries.' },
+  { v:'2.14.1', notes:'Fixed the log progress stepper to adjust from the book\'s current page (not 0) when the input is left empty.' },
 ];
 
 /* ---------- firebase ---------- */
