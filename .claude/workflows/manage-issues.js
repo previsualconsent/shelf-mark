@@ -83,11 +83,13 @@ const REVIEWER_SCHEMA = {
 
 function reviewerPrompt(issue, prNumber) {
   return `In the shelf-mark repo, review PR #${prNumber}, which claims to resolve issue #${issue.number} ("${issue.title}"). ` +
-    `Read the diff with \`gh pr diff ${prNumber}\` and the issue body below, then take exactly one action:\n` +
-    `- approve (\`gh pr review ${prNumber} --approve\`) if the change correctly and safely resolves the issue.\n` +
-    `- request_changes (\`gh pr review ${prNumber} --request-changes --body "..."\`) with specific, actionable comments, if it has concrete, mechanically fixable problems.\n` +
-    `- flag_human (\`gh pr comment ${prNumber} --body "..."\`, no formal review state) if the concern needs human judgment (e.g. architectural direction) rather than another mechanical fix.\n` +
-    `Never merge the PR.\n\nIssue body:\n${issue.body}\n\nReport {action, comments} describing what you did.`
+    `Read the diff with \`gh pr diff ${prNumber}\` and the issue body below, then decide exactly one verdict:\n` +
+    `- approve if the change correctly and safely resolves the issue.\n` +
+    `- request_changes with specific, actionable comments, if it has concrete, mechanically fixable problems.\n` +
+    `- flag_human if the concern needs human judgment (e.g. architectural direction) rather than another mechanical fix.\n` +
+    `Never call \`gh pr review --approve\` or \`gh pr review --request-changes\` — this repo's PRs are always authored by the same GitHub account that would be reviewing them, so GitHub rejects any formal review state as self-approval. ` +
+    `Regardless of your verdict, record it with \`gh pr comment ${prNumber} --body "..."\` stating plainly whether you consider it approved or in need of further review, and why. ` +
+    `Never merge the PR.\n\nIssue body:\n${issue.body}\n\nReport {action, comments} describing your verdict and the comment you posted.`
 }
 
 const FIXER_SCHEMA = {
