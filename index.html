@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.7.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -53,6 +53,7 @@ const VERSION_HISTORY = [
   { v:'2.6.3', notes:'Fixed the rewards list freezing the app when an implausibly large "current page" is logged: the earliest unclaimed reward is now pinned as a single row (with a "N more in between" divider) instead of expanding the rendered range all the way to it, which used to try to render one row per skipped milestone.' },
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
   { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
+  { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -580,18 +581,33 @@ function exportData(){
   URL.revokeObjectURL(url);
 }
 
+function isValidBookEntry(e){
+  return !!e && typeof e === 'object' && typeof e.date === 'string' && Number.isFinite(e.page) && e.page >= 0;
+}
+function isValidBook(b){
+  if(!b || typeof b !== 'object') return false;
+  if(typeof b.id !== 'string' || !b.id) return false;
+  if(typeof b.title !== 'string' || !b.title.trim()) return false;
+  if(!Array.isArray(b.entries) || !b.entries.every(isValidBookEntry)) return false;
+  if(b.targetPages != null && (!Number.isFinite(b.targetPages) || b.targetPages < 0)) return false;
+  if(b.multiplier != null && (!Number.isFinite(b.multiplier) || b.multiplier < 0)) return false;
+  return true;
+}
+function isValidRewardLabels(r){
+  return !!r && typeof r === 'object' && !Array.isArray(r);
+}
 function importData(file){
   const reader = new FileReader();
   reader.onload = ()=>{
     let parsed;
     try{ parsed = JSON.parse(reader.result); }
     catch(e){ alert('That file isn\'t valid Shelfmark data (couldn\'t read it as JSON).'); return; }
-    if(!parsed || !Array.isArray(parsed.books)){
+    if(!parsed || !Array.isArray(parsed.books) || !parsed.books.every(isValidBook) || (parsed.rewardLabels != null && !isValidRewardLabels(parsed.rewardLabels))){
       alert('That file isn\'t valid Shelfmark data.'); return;
     }
     const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
     if(!proceed) return;
-    data = { books: parsed.books, rewardLabels: normalizeRewardLabels(parsed.rewardLabels || {}), rewardInterval: parsed.rewardInterval || 100 };
+    data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
     saveData();
     view = {screen:'home'};
     render();
