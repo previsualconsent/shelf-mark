@@ -50,6 +50,16 @@
     text-align:center;
     padding:2px 0 4px;
   }
+  .sync-error-tag{
+    font-family:'Inter', sans-serif;
+    font-size:11px;
+    color:var(--danger);
+    background:rgba(166,80,60,0.12);
+    border-radius:8px;
+    text-align:center;
+    padding:6px 10px;
+    margin-bottom:10px;
+  }
 
   /* Signature element: the shelf */
   .shelf{
@@ -145,6 +155,7 @@
     border-left:3px solid transparent;
   }
   .reward-row.active{ border-left-color:var(--cover); }
+  .reward-row.reward-tinted{ background:rgba(201,162,75,0.14); border-radius:8px; }
   .reward-node{
     width:26px; flex:none; display:flex; flex-direction:column; align-items:center;
   }
@@ -157,13 +168,13 @@
     border:none; background:var(--cover); color:var(--page);
   }
   .reward-badge.active-ready{
-    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:pointer;
+    border:2px solid var(--gold); color:var(--gold); background:transparent; cursor:pointer; font-size:14px;
   }
   .reward-badge.active-pending{
-    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:default;
+    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:default; font-size:10px;
   }
   .reward-badge.locked{
-    border:2px solid var(--ink-soft); color:var(--ink-soft); background:transparent; opacity:0.5; cursor:default;
+    border:2px solid var(--ink-soft); color:var(--ink-soft); background:transparent; opacity:0.4; cursor:default;
   }
   .reward-line{
     width:2px; flex:1; background:var(--rule); margin:2px 0 -12px;
@@ -221,6 +232,10 @@
     padding:20px 20px 26px; max-height:85vh; overflow-y:auto;
   }
   .sheet h2{ font-family:'Fraunces',serif; font-size:20px; margin:0 0 14px; }
+  .last-entry-hint{
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft);
+    margin:-8px 0 14px;
+  }
   .field{ margin-bottom:14px; }
   .field label{ display:block; font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-soft); margin-bottom:5px;}
   .field input{
@@ -228,6 +243,18 @@
     font-family:'Source Serif 4', serif; font-size:16px; background:#fff; color:var(--ink);
   }
   .field input:focus{ outline:2px solid var(--cover); outline-offset:1px; }
+  .stepper-row{ display:flex; align-items:center; gap:6px; }
+  .stepper-row .stepper-input{ flex:1; min-width:0; text-align:center; }
+  .stepper-input::-webkit-inner-spin-button, .stepper-input::-webkit-outer-spin-button{
+    -webkit-appearance:none; margin:0;
+  }
+  .stepper-input{ -moz-appearance:textfield; }
+  .stepper-btn{
+    flex:none; min-width:44px; min-height:44px; padding:0 10px; border-radius:8px;
+    border:1px solid var(--rule); background:#fff; color:var(--ink);
+    font-family:'Inter',sans-serif; font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .stepper-btn:active{ background:var(--page-warm); }
   .btn-row{ display:flex; gap:10px; margin-top:6px; }
   .btn{
     flex:1; padding:12px; border-radius:9px; border:none; font-family:'Inter',sans-serif;
