@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.8.0';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -54,6 +54,7 @@ const VERSION_HISTORY = [
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
   { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
   { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
+  { v:'2.8.0', notes:'Logging a page that crosses a reward milestone now surfaces a celebration sheet with the reward name and a claim / remind-later choice.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -329,6 +330,39 @@ function normalizeRewardLabels(raw){
 function getOrCreateReward(milestone){
   if(!store.data.rewardLabels[milestone]) store.data.rewardLabels[milestone] = { label:'', done:false };
   return store.data.rewardLabels[milestone];
+}
+/* Returns the lowest not-yet-claimed reward milestone that `after` reaches
+   but `before` hadn't, or null if the save didn't cross one. */
+function newlyCrossedMilestone(before, after){
+  const interval = rewardInterval();
+  const firstIdx = Math.floor(before/interval) + 1;
+  const lastIdx = Math.floor(after/interval);
+  for(let i=firstIdx; i<=lastIdx; i++){
+    const milestone = i*interval;
+    const reward = store.data.rewardLabels[milestone];
+    if(!reward || !reward.done) return milestone;
+  }
+  return null;
+}
+function openMilestoneCelebration(milestone){
+  const reward = getOrCreateReward(milestone);
+  const rewardText = reward.label ? escapeHtml(reward.label) : 'your reward';
+  openSheet(`
+    <h2>🎉 ${milestone} pages!</h2>
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px;">
+      You've crossed the ${milestone}-page milestone — time for ${rewardText}.
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="f-celebrate-later">Not yet — remind me later</button>
+      <button class="btn btn-primary" id="f-celebrate-claim">I've claimed it</button>
+    </div>
+  `, (root)=>{
+    root.querySelector('#f-celebrate-later').addEventListener('click', closeSheet);
+    root.querySelector('#f-celebrate-claim').addEventListener('click', ()=>{
+      reward.done = true;
+      saveData(); closeSheet(); render();
+    });
+  });
 }
 
 /* ---------- rendering ---------- */
@@ -1021,10 +1055,14 @@ function openEntrySheet(bookId){
       const date = root.querySelector('#f-date').value || todayStr();
       const page = parseInt(root.querySelector('#f-page').value, 10);
       if(isNaN(page) || page < 0) return;
+      const beforeTotal = totalPagesRead(store.data.books);
       b.entries = b.entries.filter(e=>e.date!==date);
       b.entries.push({date, page});
       b.updatedAt = Date.now();
       saveData(); closeSheet(); render();
+      const afterTotal = totalPagesRead(store.data.books);
+      const crossedMilestone = newlyCrossedMilestone(beforeTotal, afterTotal);
+      if(crossedMilestone) openMilestoneCelebration(crossedMilestone);
     });
     root.querySelector('#f-page').focus();
   });
