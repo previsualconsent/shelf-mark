@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.8.0';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -54,6 +54,7 @@ const VERSION_HISTORY = [
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
   { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
   { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
+  { v:'2.8.0', notes:'Book detail now shows reading pace ("~35 pages/week") computed from entry history, plus a projected finish date when the book has a page goal.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -290,6 +291,32 @@ function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
+}
+function fmtDateShort(d){
+  return d.toLocaleDateString(undefined,{month:'short', day:'numeric'});
+}
+/* Reading pace from the span between a book's first and last entry, and
+   (if a target is set) a projected finish date at that pace. Returns null
+   when there isn't enough history yet (fewer than 2 entries, no elapsed
+   time, or no forward progress). */
+function bookVelocityStats(book){
+  const entries = sortedEntries(book);
+  if(entries.length < 2) return null;
+  const first = entries[0], last = entries[entries.length-1];
+  const days = (new Date(last.date+'T00:00:00') - new Date(first.date+'T00:00:00')) / 86400000;
+  const pagesDelta = last.page - first.page;
+  if(days <= 0 || pagesDelta <= 0) return null;
+  const perWeek = Math.round(pagesDelta / (days/7));
+  let finishDate = null;
+  if(book.targetPages && perWeek > 0){
+    const remaining = book.targetPages - last.page;
+    if(remaining > 0){
+      const d = new Date();
+      d.setDate(d.getDate() + Math.ceil((remaining/perWeek)*7));
+      finishDate = d;
+    }
+  }
+  return { perWeek, finishDate };
 }
 function rewardInterval(){
   const n = parseInt(store.data.rewardInterval, 10);
@@ -844,13 +871,20 @@ function renderBook(bookId){
   summary.className='shelf';
   const target = b.targetPages;
   const pct = target ? Math.min(100, Math.round((pages/target)*100)) : null;
+  const velocity = bookVelocityStats(b);
+  const velocityText = velocity
+    ? `~${velocity.perWeek} pages/week${velocity.finishDate ? ` · finish by ${fmtDateShort(velocity.finishDate)}` : ''}`
+    : '';
   summary.innerHTML = `
     <div class="shelf-total">
       <div>
         <div class="num">${pages}</div>
         <div class="label">Pages read${target?` of ${target}`:''}</div>
       </div>
-      ${mult>1 ? `<div class="next">${mult}× bonus<br>= ${effective}p counted</div>` : ''}
+      <div class="next">
+        ${mult>1 ? `${mult}× bonus = ${effective}p counted<br>` : ''}
+        ${velocityText}
+      </div>
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
   `;
