@@ -13,260 +13,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Serif+4:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root{
-    --cover:#2F4B3C;
-    --cover-dark:#203729;
-    --page:#F6F1E4;
-    --page-warm:#EFE7D4;
-    --gold:#C9A24B;
-    --ink:#232C26;
-    --ink-soft:#5B6660;
-    --rule:#DCD3BC;
-    --danger:#A6503C;
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0; padding:0;}
-  body{
-    background:var(--cover);
-    background-image:
-      radial-gradient(circle at 20% -10%, rgba(255,255,255,0.06), transparent 40%),
-      linear-gradient(180deg, var(--cover) 0%, var(--cover-dark) 100%);
-    min-height:100vh;
-    font-family:'Source Serif 4', Georgia, serif;
-    color:var(--ink);
-    padding-bottom:48px;
-  }
-  .app{ max-width:520px; margin:0 auto; padding:0 16px; }
-
-  header.top{
-    padding:28px 4px 18px;
-    display:flex; align-items:baseline; justify-content:space-between;
-  }
-  header.top h1{
-    font-family:'Fraunces', serif;
-    font-weight:700;
-    font-size:28px;
-    color:var(--page);
-    margin:0;
-    letter-spacing:0.2px;
-  }
-  header.top span.tag{
-    font-family:'Inter', sans-serif;
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:1.5px;
-    color:var(--gold);
-  }
-  .version-tag{
-    font-family:'Inter', sans-serif;
-    font-size:10px;
-    color:var(--page-warm);
-    opacity:0.5;
-    text-align:center;
-    padding:2px 0 4px;
-  }
-
-  /* Signature element: the shelf */
-  .shelf{
-    background:var(--page);
-    border-radius:14px;
-    padding:18px 16px 14px;
-    box-shadow:0 10px 30px rgba(0,0,0,0.25);
-    margin-bottom:18px;
-  }
-  .shelf-total{
-    display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:12px;
-  }
-  .shelf-total .num{
-    font-family:'Fraunces', serif; font-weight:700; font-size:40px; line-height:1;
-  }
-  .shelf-total .label{
-    font-family:'Inter', sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--ink-soft);
-  }
-  .shelf-total .next{
-    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); text-align:right;
-  }
-  .spines{
-    display:flex; align-items:flex-end; gap:4px; height:76px; padding:0 2px 6px;
-    border-bottom:2px solid var(--ink); margin-bottom:2px;
-  }
-  .spine{
-    flex:1; min-width:6px; border-radius:3px 3px 0 0; position:relative;
-    transition:height 0.4s ease;
-  }
-  .spine-archived{ opacity:0.4; }
-  .spine-check{
-    position:absolute; top:-16px; left:50%; transform:translateX(-50%);
-    font-size:11px; color:var(--gold); font-family:'Inter',sans-serif; font-weight:700;
-  }
-  .spine-label{
-    position:absolute; bottom:100%; left:50%; transform:translateX(-50%);
-    margin-bottom:6px; padding:4px 8px; border-radius:6px;
-    background:var(--ink); color:var(--page); white-space:nowrap;
-    font-family:'Inter',sans-serif; font-size:11px; font-weight:600;
-    pointer-events:none; z-index:5;
-  }
-
-  .section-title{
-    font-family:'Inter', sans-serif; font-size:11px; text-transform:uppercase;
-    letter-spacing:1.4px; color:var(--gold); margin:22px 4px 8px;
-  }
-
-  .card{
-    background:var(--page); border-radius:12px; padding:14px 16px; margin-bottom:10px;
-    box-shadow:0 4px 14px rgba(0,0,0,0.16);
-  }
-  .book-card{ cursor:pointer; }
-  .book-archived{ opacity:0.6; }
-  .book-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
-  .book-title{ font-family:'Fraunces', serif; font-weight:600; font-size:17px; }
-  .completed-check{ color:var(--gold); }
-  .tag-pill{
-    font-family:'Inter', sans-serif; font-size:10px; text-transform:uppercase; letter-spacing:0.6px;
-    color:var(--ink-soft); border:1px solid var(--rule); border-radius:8px; padding:1px 6px; vertical-align:middle;
-  }
-  .book-meta{ font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); margin-top:2px;}
-  .book-page{ font-family:'Fraunces', serif; font-weight:700; font-size:20px; color:var(--cover); white-space:nowrap;}
-  .progress-track{ height:6px; background:var(--rule); border-radius:4px; margin-top:10px; overflow:hidden;}
-  .progress-fill{ height:100%; background:var(--gold); border-radius:4px; }
-  .archive-toggle{
-    background:none; border:none; cursor:pointer; font-family:'Inter',sans-serif; font-size:11px;
-    color:var(--gold); text-decoration:underline; padding:0;
-  }
-
-  .empty{
-    font-family:'Inter', sans-serif; color:var(--page-warm); opacity:0.75; font-size:14px;
-    text-align:center; padding:26px 10px;
-  }
-
-  .rewards-header{
-    display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;
-  }
-  .rewards-title{
-    font-family:'Inter', sans-serif; font-size:13px; font-weight:600; color:var(--ink); margin:0;
-  }
-  .reward-pill{
-    display:flex; align-items:center; gap:6px; border:none; border-radius:999px; cursor:pointer;
-    background:var(--page-warm); color:var(--ink-soft); font-family:'Inter',sans-serif; font-size:11px;
-    padding:5px 10px; flex:none; white-space:nowrap;
-  }
-  .reward-pill .dot{
-    width:7px; height:7px; border-radius:50%; background:var(--ink-soft); opacity:0.35; flex:none;
-  }
-  .reward-pill.on .dot{ background:var(--cover); opacity:1; }
-
-  .reward-row{
-    display:flex; align-items:stretch; gap:12px; padding:6px 2px 6px 9px;
-    border-left:3px solid transparent;
-  }
-  .reward-row.active{ border-left-color:var(--cover); }
-  .reward-node{
-    width:26px; flex:none; display:flex; flex-direction:column; align-items:center;
-  }
-  .reward-badge{
-    width:24px; height:24px; border-radius:50%; flex:none; padding:0;
-    display:flex; align-items:center; justify-content:center; font-size:13px;
-    background:transparent; cursor:pointer; box-sizing:border-box;
-  }
-  .reward-badge.claimed{
-    border:none; background:var(--cover); color:var(--page);
-  }
-  .reward-badge.active-ready{
-    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:pointer;
-  }
-  .reward-badge.active-pending{
-    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:default;
-  }
-  .reward-badge.locked{
-    border:2px solid var(--ink-soft); color:var(--ink-soft); background:transparent; opacity:0.5; cursor:default;
-  }
-  .reward-line{
-    width:2px; flex:1; background:var(--rule); margin:2px 0 -12px;
-  }
-  .reward-line.filled{ background:var(--cover); }
-
-  .reward-gap-row .reward-node{ width:26px; }
-  .reward-gap-text{
-    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); padding-top:4px;
-  }
-
-  .reward-body{ flex:1; min-width:0; padding-top:1px; }
-  .reward-milestone{ font-family:'Fraunces', serif; font-weight:600; font-size:14px; }
-  .reward-milestone.active{ color:var(--cover); }
-  .reward-locked .reward-body{ opacity:0.5; }
-
-  .reward-value-row{ display:flex; align-items:center; gap:6px; min-height:26px; margin-top:2px; }
-  .reward-value-text{
-    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); flex:1; min-width:0;
-  }
-  .reward-value-text.is-empty{ font-style:italic; }
-  .reward-input{
-    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink);
-    border:1px solid var(--rule); border-radius:8px; background:var(--page);
-    width:100%; padding:5px 8px; margin-top:2px;
-  }
-  .reward-input:disabled{ cursor:not-allowed; }
-
-  .reward-settings{
-    display:flex; align-items:center; gap:8px; padding:0 2px 10px; border-bottom:1px solid var(--rule); margin-bottom:8px;
-    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft);
-  }
-  .reward-settings input{
-    width:56px; text-align:center; padding:4px 6px; border-radius:6px; border:1px solid var(--rule);
-    font-family:'Inter', sans-serif; font-size:12px; color:var(--ink);
-  }
-
-  .fab{
-    position:fixed; right:20px; bottom:24px;
-    width:56px; height:56px; border-radius:50%;
-    background:var(--gold); color:var(--cover-dark);
-    display:flex; align-items:center; justify-content:center;
-    font-size:28px; font-family:'Inter',sans-serif; font-weight:600;
-    border:none; box-shadow:0 8px 20px rgba(0,0,0,0.35);
-    cursor:pointer; z-index:20;
-  }
-
-  .sheet-backdrop{
-    position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:30;
-    display:none; align-items:flex-end; justify-content:center;
-  }
-  .sheet-backdrop.open{ display:flex; }
-  .sheet{
-    background:var(--page); width:100%; max-width:520px; border-radius:18px 18px 0 0;
-    padding:20px 20px 26px; max-height:85vh; overflow-y:auto;
-  }
-  .sheet h2{ font-family:'Fraunces',serif; font-size:20px; margin:0 0 14px; }
-  .field{ margin-bottom:14px; }
-  .field label{ display:block; font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-soft); margin-bottom:5px;}
-  .field input{
-    width:100%; padding:11px 12px; border-radius:8px; border:1px solid var(--rule);
-    font-family:'Source Serif 4', serif; font-size:16px; background:#fff; color:var(--ink);
-  }
-  .field input:focus{ outline:2px solid var(--cover); outline-offset:1px; }
-  .btn-row{ display:flex; gap:10px; margin-top:6px; }
-  .btn{
-    flex:1; padding:12px; border-radius:9px; border:none; font-family:'Inter',sans-serif;
-    font-weight:600; font-size:14px; cursor:pointer;
-  }
-  .btn-primary{ background:var(--cover); color:var(--page); }
-  .btn-secondary{ background:var(--rule); color:var(--ink); }
-  .btn-accent{ background:var(--gold); color:var(--cover-dark); }
-  .btn-danger{ background:transparent; color:var(--danger); text-decoration:underline; font-weight:500; }
-
-  .history{ margin-top:14px; }
-  .history-row{
-    display:flex; justify-content:space-between; font-family:'Inter',sans-serif; font-size:13px;
-    padding:7px 0; border-bottom:1px solid var(--rule); color:var(--ink-soft);
-  }
-  .history-row .hp{ color:var(--ink); font-weight:600; }
-  .del-x{ background:none; border:none; color:var(--danger); font-size:15px; cursor:pointer; padding:0 4px;}
-
-  .back-link{
-    font-family:'Inter',sans-serif; font-size:13px; color:var(--page); opacity:0.85;
-    background:none; border:none; cursor:pointer; padding:8px 4px; margin-bottom:4px;
-  }
-</style>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <div class="app" id="app"></div>
@@ -280,11 +27,12 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check-compat.js"></script>
+<script src="calc.js"></script>
 <script>
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.6.4';
+const APP_VERSION = '2.7.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -304,6 +52,8 @@ const VERSION_HISTORY = [
   { v:'2.6.2', notes:'Tapping a shelf spine now shows its book title as a temporary label, since the hover tooltip does not work on touch devices.' },
   { v:'2.6.3', notes:'Fixed the rewards list freezing the app when an implausibly large "current page" is logged: the earliest unclaimed reward is now pinned as a single row (with a "N more in between" divider) instead of expanding the rendered range all the way to it, which used to try to render one row per skipped milestone.' },
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
+  { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
+  { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -417,7 +167,7 @@ function loadCachedData(uid){
     if(!raw) return { books: [], rewardLabels: {}, rewardInterval: 100 };
     const parsed = JSON.parse(raw);
     parsed.books = parsed.books || [];
-    parsed.rewardLabels = parsed.rewardLabels || {};
+    parsed.rewardLabels = normalizeRewardLabels(parsed.rewardLabels || {});
     parsed.rewardInterval = parsed.rewardInterval || 100;
     return parsed;
   }catch(e){ return { books: [], rewardLabels: {}, rewardInterval: 100 }; }
@@ -443,7 +193,7 @@ function attachListener(uid){
     if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
     const remote = snap.data();
     if(!remote) return;
-    const fresh = { books: remote.books || [], rewardLabels: remote.rewardLabels || {}, rewardInterval: remote.rewardInterval || 100 };
+    const fresh = { books: remote.books || [], rewardLabels: normalizeRewardLabels(remote.rewardLabels || {}), rewardInterval: remote.rewardInterval || 100 };
     store.peopleCache[uid] = fresh;
     try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
     if(uid === store.currentUid) store.data = fresh;
@@ -507,7 +257,7 @@ async function loadDevFixture(){
   const uid = 'dev-'+fixture;
   const fixtureData = {
     books: payload.books || [],
-    rewardLabels: payload.rewardLabels || {},
+    rewardLabels: normalizeRewardLabels(payload.rewardLabels || {}),
     rewardInterval: payload.rewardInterval || 100,
   };
   if(!store.roster.some(r=>r.uid===uid)){
@@ -541,20 +291,6 @@ function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
 }
-function bookPagesRead(book){
-  if(!book.entries.length) return 0;
-  return Math.max(...book.entries.map(e=>e.page));
-}
-function bookMultiplier(book){
-  const m = parseFloat(book.multiplier);
-  return (!m || m < 1) ? 1 : m;
-}
-function bookEffectivePages(book){
-  return Math.round(bookPagesRead(book) * bookMultiplier(book));
-}
-function totalPagesRead(){
-  return store.data.books.reduce((sum,b)=>sum+bookEffectivePages(b),0);
-}
 function rewardInterval(){
   const n = parseInt(store.data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
@@ -567,6 +303,32 @@ function bookIsCompleted(book){
 }
 function sortedEntries(book){
   return [...book.entries].sort((a,b)=> a.date.localeCompare(b.date));
+}
+/* Migrates the old dual-key rewardLabels shape ({ [milestone]: label,
+   [milestone+'_done']: bool }) to the nested { [milestone]: { label, done } }
+   shape. Safe to run on already-migrated data (a no-op pass-through). */
+function normalizeRewardLabels(raw){
+  const out = {};
+  Object.keys(raw).forEach(key=>{
+    if(key.endsWith('_done')){
+      const milestone = key.slice(0, -'_done'.length);
+      out[milestone] = out[milestone] || { label:'', done:false };
+      out[milestone].done = !!raw[key];
+    } else {
+      const val = raw[key];
+      if(val && typeof val === 'object'){
+        out[key] = { label: val.label || '', done: !!val.done };
+      } else {
+        out[key] = out[key] || { label:'', done:false };
+        out[key].label = val || '';
+      }
+    }
+  });
+  return out;
+}
+function getOrCreateReward(milestone){
+  if(!store.data.rewardLabels[milestone]) store.data.rewardLabels[milestone] = { label:'', done:false };
+  return store.data.rewardLabels[milestone];
 }
 
 /* ---------- rendering ---------- */
@@ -682,7 +444,7 @@ function renderHome(){
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
 
-  const total = totalPagesRead();
+  const total = totalPagesRead(store.data.books);
   const interval = rewardInterval();
   const nextMilestone = (Math.floor(total/interval)+1)*interval;
   const shelf = document.createElement('div');
@@ -821,18 +583,33 @@ function exportData(){
   URL.revokeObjectURL(url);
 }
 
+function isValidBookEntry(e){
+  return !!e && typeof e === 'object' && typeof e.date === 'string' && Number.isFinite(e.page) && e.page >= 0;
+}
+function isValidBook(b){
+  if(!b || typeof b !== 'object') return false;
+  if(typeof b.id !== 'string' || !b.id) return false;
+  if(typeof b.title !== 'string' || !b.title.trim()) return false;
+  if(!Array.isArray(b.entries) || !b.entries.every(isValidBookEntry)) return false;
+  if(b.targetPages != null && (!Number.isFinite(b.targetPages) || b.targetPages < 0)) return false;
+  if(b.multiplier != null && (!Number.isFinite(b.multiplier) || b.multiplier < 0)) return false;
+  return true;
+}
+function isValidRewardLabels(r){
+  return !!r && typeof r === 'object' && !Array.isArray(r);
+}
 function importData(file){
   const reader = new FileReader();
   reader.onload = ()=>{
     let parsed;
     try{ parsed = JSON.parse(reader.result); }
     catch(e){ alert('That file isn\'t valid Shelfmark data (couldn\'t read it as JSON).'); return; }
-    if(!parsed || !Array.isArray(parsed.books)){
+    if(!parsed || !Array.isArray(parsed.books) || !parsed.books.every(isValidBook) || (parsed.rewardLabels != null && !isValidRewardLabels(parsed.rewardLabels))){
       alert('That file isn\'t valid Shelfmark data.'); return;
     }
     const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
     if(!proceed) return;
-    store.data = { books: parsed.books, rewardLabels: parsed.rewardLabels || {}, rewardInterval: parsed.rewardInterval || 100 };
+    store.data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
     saveData();
     store.view = {screen:'home'};
     render();
@@ -903,7 +680,7 @@ function rewardsCard(total){
 
   let earliestUnchecked = lastReachedIndex+1;
   for(let i=1;i<=Math.min(lastReachedIndex, SCAN_CAP);i++){
-    if(!store.data.rewardLabels[(i*interval)+'_done']){ earliestUnchecked = i; break; }
+    if(!(store.data.rewardLabels[i*interval] && store.data.rewardLabels[i*interval].done)){ earliestUnchecked = i; break; }
   }
 
   // Milestones from earliestUnchecked through lastReachedIndex have been
@@ -952,15 +729,15 @@ function rewardsCard(total){
   let activeIdx = null;
   for(const i of rowIndices){
     const milestone = i*interval;
-    if(!store.data.rewardLabels[milestone+'_done']){ activeIdx = i; break; }
+    if(!(store.data.rewardLabels[milestone] && store.data.rewardLabels[milestone].done)){ activeIdx = i; break; }
   }
 
   let rows = '';
   rowIndices.forEach((i, pos)=>{
     const milestone = i*interval;
     const reached = total >= milestone;
-    const done = !!store.data.rewardLabels[milestone+'_done'];
-    const label = store.data.rewardLabels[milestone] || '';
+    const done = !!(store.data.rewardLabels[milestone] && store.data.rewardLabels[milestone].done);
+    const label = (store.data.rewardLabels[milestone] && store.data.rewardLabels[milestone].label) || '';
     let state;
     if(done) state = 'claimed';
     else if(activeIdx !== null && i === activeIdx) state = reached ? 'active-ready' : 'active-pending';
@@ -1030,8 +807,8 @@ function rewardsCard(total){
     btn.addEventListener('click', ()=>{
       if(btn.disabled) return;
       const m = btn.getAttribute('data-milestone');
-      const key = m+'_done';
-      store.data.rewardLabels[key] = !store.data.rewardLabels[key];
+      const entry = getOrCreateReward(m);
+      entry.done = !entry.done;
       saveData(); render();
     });
   });
@@ -1039,7 +816,7 @@ function rewardsCard(total){
   el.querySelectorAll('input[data-label]').forEach(inp=>{
     inp.addEventListener('change', ()=>{
       const m = inp.getAttribute('data-label');
-      store.data.rewardLabels[m] = inp.value;
+      getOrCreateReward(m).label = inp.value;
       saveData();
     });
   });
