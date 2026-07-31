@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.8.0';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -54,6 +54,7 @@ const VERSION_HISTORY = [
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
   { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
   { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
+  { v:'2.8.0', notes:'Large page counts (10,000+) are now abbreviated ("10k", "1.0M") everywhere a page number is shown, instead of overflowing their card.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -291,6 +292,11 @@ function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
 }
+function fmtNum(n){
+  if(n>=1000000) return (n/1000000).toFixed(1)+'M';
+  if(n>=10000) return Math.round(n/1000)+'k';
+  return String(n);
+}
 function rewardInterval(){
   const n = parseInt(store.data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
@@ -363,10 +369,10 @@ function renderRoster(){
       <div class="book-row">
         <div>
           <div class="book-title">${escapeHtml(r.name)}</div>
-          <div class="book-meta">${total} pages read</div>
+          <div class="book-meta">${fmtNum(total)} pages read</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <div class="book-page">${total}p</div>
+          <div class="book-page">${fmtNum(total)}p</div>
           <button class="del-x" data-share="${r.uid}" title="Share link" style="font-size:18px;">🔗</button>
         </div>
       </div>`;
@@ -464,10 +470,10 @@ function renderHome(){
   shelf.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${total}</div>
+        <div class="num">${fmtNum(total)}</div>
         <div class="label">Total pages read</div>
       </div>
-      <div class="next">${interval - (total%interval)} pages to<br>next reward (${nextMilestone})</div>
+      <div class="next">${fmtNum(interval - (total%interval))} pages to<br>next reward (${fmtNum(nextMilestone)})</div>
     </div>
     <div class="spines">${spinesHtml}</div>
   `;
@@ -643,11 +649,11 @@ function bookCard(b){
     <div class="book-row">
       <div>
         <div class="book-title">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}${b.archived?' <span class="tag-pill">Archived</span>':''}</div>
-        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${target}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
+        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${fmtNum(target)}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
       </div>
       <div style="text-align:right;">
-        <div class="book-page">${pages}p</div>
-        ${mult>1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${effective}p counted</div>`:''}
+        <div class="book-page">${fmtNum(pages)}p</div>
+        ${mult>1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${fmtNum(effective)}p counted</div>`:''}
       </div>
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
@@ -847,10 +853,10 @@ function renderBook(bookId){
   summary.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${pages}</div>
-        <div class="label">Pages read${target?` of ${target}`:''}</div>
+        <div class="num">${fmtNum(pages)}</div>
+        <div class="label">Pages read${target?` of ${fmtNum(target)}`:''}</div>
       </div>
-      ${mult>1 ? `<div class="next">${mult}× bonus<br>= ${effective}p counted</div>` : ''}
+      ${mult>1 ? `<div class="next">${mult}× bonus<br>= ${fmtNum(effective)}p counted</div>` : ''}
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
   `;
