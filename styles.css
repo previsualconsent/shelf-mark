@@ -145,6 +145,7 @@
     border-left:3px solid transparent;
   }
   .reward-row.active{ border-left-color:var(--cover); }
+  .reward-row.reward-tinted{ background:rgba(201,162,75,0.14); border-radius:8px; }
   .reward-node{
     width:26px; flex:none; display:flex; flex-direction:column; align-items:center;
   }
@@ -157,13 +158,13 @@
     border:none; background:var(--cover); color:var(--page);
   }
   .reward-badge.active-ready{
-    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:pointer;
+    border:2px solid var(--gold); color:var(--gold); background:transparent; cursor:pointer; font-size:14px;
   }
   .reward-badge.active-pending{
-    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:default;
+    border:2px solid var(--cover); color:var(--cover); background:transparent; cursor:default; font-size:10px;
   }
   .reward-badge.locked{
-    border:2px solid var(--ink-soft); color:var(--ink-soft); background:transparent; opacity:0.5; cursor:default;
+    border:2px solid var(--ink-soft); color:var(--ink-soft); background:transparent; opacity:0.4; cursor:default;
   }
   .reward-line{
     width:2px; flex:1; background:var(--rule); margin:2px 0 -12px;
