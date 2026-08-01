@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.7.1';
+const APP_VERSION = '2.14.1';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -54,6 +54,15 @@ const VERSION_HISTORY = [
   { v:'2.6.4', notes:'Reworked the collapsed rewards view: it now shows the current unclaimed reward plus up to three more unclaimed rewards behind it individually, collapses any remaining unclaimed backlog behind a single count, then shows the next few locked (not-yet-reached) rewards.' },
   { v:'2.7.0', notes:'Restructured rewardLabels storage from a dual-key shape ({ [milestone]: label, [milestone+"_done"]: done }) to a nested object ({ [milestone]: { label, done } }); old data is migrated automatically on load. Older client versions cannot read the new shape, so make sure every device sharing a reader has updated before editing rewards there.' },
   { v:'2.7.1', notes:'Fixed a bug where importing a backup with an Infinity/NaN page value (or a non-object rewardLabels) could hang the app: import validation now rejects non-finite or negative page/target/multiplier values and malformed rewardLabels instead of silently accepting them.' },
+  { v:'2.8.0', notes:'Surfaced a visible banner when a Firestore write fails, instead of failing silently and leaving local and synced data out of sync.' },
+  { v:'2.8.1', notes:'Abbreviated large page counts (e.g. 12.3k) so they no longer overflow shelf cards.' },
+  { v:'2.9.0', notes:'Replaced the native number-spinner arrows on page inputs with a tap-friendly ±1/±10 stepper.' },
+  { v:'2.10.0', notes:'The log progress sheet now shows the last-logged page and date for context while entering a new one.' },
+  { v:'2.11.0', notes:'Added a milestone celebration sheet that appears when a logged entry crosses a reward threshold.' },
+  { v:'2.12.0', notes:'The log progress sheet now shows a live "+N pages since last entry" hint as you type.' },
+  { v:'2.13.0', notes:'Gave the rewards stepper 4 visually distinct badge states (locked, active, claimed, claimed-unlabeled).' },
+  { v:'2.14.0', notes:'Book detail now surfaces reading pace and a projected finish date based on recent entries.' },
+  { v:'2.14.1', notes:'Fixed the log progress stepper to adjust from the book\'s current page (not 0) when the input is left empty.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -185,7 +194,12 @@ async function saveData(){
       rewardInterval: rewardInterval(),
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
-  }catch(e){ console.error('Save failed:', e); }
+    if(store.syncError){ store.syncError = null; render(); }
+  }catch(e){
+    console.error('Save failed:', e);
+    store.syncError = 'Sync failed — changes saved on this device only.';
+    render();
+  }
 }
 function attachListener(uid){
   if(!firebaseReady || store.listeners[uid] || isDevNoSync(uid)) return;
@@ -220,7 +234,10 @@ async function createReader(name){
   if(firebaseReady){
     try{
       await personDocRef(newUid).set({ name, books: [], rewardLabels: {}, rewardInterval: 100, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
-    }catch(e){ console.error('Create reader failed:', e); }
+    }catch(e){
+      console.error('Create reader failed:', e);
+      store.syncError = 'Sync failed — new reader saved on this device only.';
+    }
   }
   return newUid;
 }
@@ -280,6 +297,7 @@ const store = {
   currentUid: null,
   data: { books: [], rewardLabels: {}, rewardInterval: 100 },
   view: { screen:'home', bookId:null },
+  syncError: null,
 };
 let showArchived = false;
 let showAllRewards = false;
@@ -290,6 +308,47 @@ function todayStr(){ return new Date().toISOString().slice(0,10); }
 function fmtDate(iso){
   const d = new Date(iso+'T00:00:00');
   return d.toLocaleDateString(undefined,{month:'short', day:'numeric', year:'numeric'});
+}
+function fmtDateShort(d){
+  return d.toLocaleDateString(undefined,{month:'short', day:'numeric'});
+}
+/* Reading pace from the span between a book's first and last entry, and
+   (if a target is set) a projected finish date at that pace. Returns null
+   when there isn't enough history yet (fewer than 2 entries, no elapsed
+   time, or no forward progress). */
+function bookVelocityStats(book){
+  const entries = sortedEntries(book);
+  if(entries.length < 2) return null;
+  const first = entries[0], last = entries[entries.length-1];
+  const days = (new Date(last.date+'T00:00:00') - new Date(first.date+'T00:00:00')) / 86400000;
+  const pagesDelta = last.page - first.page;
+  if(days <= 0 || pagesDelta <= 0) return null;
+  const perWeek = Math.round(pagesDelta / (days/7));
+  let finishDate = null;
+  if(book.targetPages && perWeek > 0){
+    // Use the actual current position (max page across all entries), not
+    // last.page, since a backfilled entry for an earlier date can be logged
+    // after a later, higher-page entry already exists — last.page would then
+    // understate progress and could project a "finish by" date even for a
+    // book that bookPagesRead()/bookIsCompleted() already consider done.
+    const remaining = book.targetPages - bookPagesRead(book);
+    if(remaining > 0){
+      const d = new Date();
+      d.setDate(d.getDate() + Math.ceil((remaining/perWeek)*7));
+      finishDate = d;
+    }
+  }
+  return { perWeek, finishDate };
+}
+function fmtNum(n){
+  if(n>=1000000) return (n/1000000).toFixed(1)+'M';
+  if(n>=10000){
+    const k = Math.round(n/1000);
+    // Rounding up to 1000k means we've crossed into millions territory.
+    if(k>=1000) return (n/1000000).toFixed(1)+'M';
+    return k+'k';
+  }
+  return String(n);
 }
 function rewardInterval(){
   const n = parseInt(store.data.rewardInterval, 10);
@@ -330,6 +389,39 @@ function getOrCreateReward(milestone){
   if(!store.data.rewardLabels[milestone]) store.data.rewardLabels[milestone] = { label:'', done:false };
   return store.data.rewardLabels[milestone];
 }
+/* Returns the lowest not-yet-claimed reward milestone that `after` reaches
+   but `before` hadn't, or null if the save didn't cross one. */
+function newlyCrossedMilestone(before, after){
+  const interval = rewardInterval();
+  const firstIdx = Math.floor(before/interval) + 1;
+  const lastIdx = Math.floor(after/interval);
+  for(let i=firstIdx; i<=lastIdx; i++){
+    const milestone = i*interval;
+    const reward = store.data.rewardLabels[milestone];
+    if(!reward || !reward.done) return milestone;
+  }
+  return null;
+}
+function openMilestoneCelebration(milestone){
+  const reward = getOrCreateReward(milestone);
+  const rewardText = reward.label ? escapeHtml(reward.label) : 'your reward';
+  openSheet(`
+    <h2>🎉 ${milestone} pages!</h2>
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px;">
+      You've crossed the ${milestone}-page milestone — time for ${rewardText}.
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="f-celebrate-later">Not yet — remind me later</button>
+      <button class="btn btn-primary" id="f-celebrate-claim">I've claimed it</button>
+    </div>
+  `, (root)=>{
+    root.querySelector('#f-celebrate-later').addEventListener('click', closeSheet);
+    root.querySelector('#f-celebrate-claim').addEventListener('click', ()=>{
+      reward.done = true;
+      saveData(); closeSheet(); render();
+    });
+  });
+}
 
 /* ---------- rendering ---------- */
 function render(){
@@ -339,6 +431,16 @@ function render(){
   else if(store.view.screen==='home') app.appendChild(renderHome());
   else if(store.view.screen==='book') app.appendChild(renderBook(store.view.bookId));
   document.getElementById('fab').style.display = store.view.screen==='home' ? 'flex' : 'none';
+}
+
+function syncErrorBanner(){
+  if(!store.syncError) return null;
+  const syncTag = document.createElement('div');
+  syncTag.className = 'sync-error-tag';
+  syncTag.setAttribute('role', 'status');
+  syncTag.setAttribute('aria-live', 'polite');
+  syncTag.textContent = `⚠ ${store.syncError}`;
+  return syncTag;
 }
 
 function renderRoster(){
@@ -354,6 +456,9 @@ function renderRoster(){
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
 
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
+
   wrap.appendChild(sectionTitle('Readers'));
   store.roster.forEach(r=>{
     const el = document.createElement('div');
@@ -363,10 +468,10 @@ function renderRoster(){
       <div class="book-row">
         <div>
           <div class="book-title">${escapeHtml(r.name)}</div>
-          <div class="book-meta">${total} pages read</div>
+          <div class="book-meta">${fmtNum(total)} pages read</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <div class="book-page">${total}p</div>
+          <div class="book-page">${fmtNum(total)}p</div>
           <button class="del-x" data-share="${r.uid}" title="Share link" style="font-size:18px;">🔗</button>
         </div>
       </div>`;
@@ -444,6 +549,9 @@ function renderHome(){
   versionTag.textContent = `v${APP_VERSION}`;
   wrap.appendChild(versionTag);
 
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
+
   const total = totalPagesRead(store.data.books);
   const interval = rewardInterval();
   const nextMilestone = (Math.floor(total/interval)+1)*interval;
@@ -464,10 +572,10 @@ function renderHome(){
   shelf.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${total}</div>
+        <div class="num">${fmtNum(total)}</div>
         <div class="label">Total pages read</div>
       </div>
-      <div class="next">${interval - (total%interval)} pages to<br>next reward (${nextMilestone})</div>
+      <div class="next">${fmtNum(interval - (total%interval))} pages to<br>next reward (${fmtNum(nextMilestone)})</div>
     </div>
     <div class="spines">${spinesHtml}</div>
   `;
@@ -643,11 +751,11 @@ function bookCard(b){
     <div class="book-row">
       <div>
         <div class="book-title">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}${b.archived?' <span class="tag-pill">Archived</span>':''}</div>
-        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${target}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
+        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${fmtNum(target)}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
       </div>
       <div style="text-align:right;">
-        <div class="book-page">${pages}p</div>
-        ${mult>1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${effective}p counted</div>`:''}
+        <div class="book-page">${fmtNum(pages)}p</div>
+        ${mult>1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${fmtNum(effective)}p counted</div>`:''}
       </div>
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
@@ -747,14 +855,13 @@ function rewardsCard(total){
     if(state === 'claimed'){
       badgeHtml = `<button class="reward-badge claimed" data-milestone="${milestone}" aria-label="Completed: ${milestone} pages">✓</button>`;
     } else if(state === 'active-ready'){
-      badgeHtml = `<button class="reward-badge active-ready" data-milestone="${milestone}" aria-label="Reward ready to claim: ${milestone} pages"></button>`;
-      rowClass = 'active'; milestoneClass = 'active';
+      badgeHtml = `<button class="reward-badge active-ready" data-milestone="${milestone}" aria-label="Reward ready to claim: ${milestone} pages">★</button>`;
+      rowClass = 'active reward-tinted'; milestoneClass = 'active';
     } else if(state === 'active-pending'){
-      badgeHtml = `<button class="reward-badge active-pending" data-milestone="${milestone}" disabled aria-label="Next goal: ${milestone} pages">🔒</button>`;
+      badgeHtml = `<button class="reward-badge active-pending" data-milestone="${milestone}" disabled aria-label="Next goal: ${milestone} pages">●</button>`;
       rowClass = 'active'; milestoneClass = 'active';
     } else {
-      const lockGlyph = reached ? '' : '🔒';
-      badgeHtml = `<button class="reward-badge locked" data-milestone="${milestone}" disabled aria-label="Locked: ${milestone} pages">${lockGlyph}</button>`;
+      badgeHtml = `<button class="reward-badge locked" data-milestone="${milestone}" disabled aria-label="Locked: ${milestone} pages"></button>`;
       rowClass = 'reward-locked';
     }
 
@@ -781,7 +888,7 @@ function rewardsCard(total){
           ${lineHtml}
         </div>
         <div class="reward-body">
-          <div class="reward-milestone ${milestoneClass}">${milestone} pages</div>
+          <div class="reward-milestone ${milestoneClass}">${fmtNum(milestone)} pages</div>
           ${valueHtml}
         </div>
       </div>`;
@@ -837,6 +944,9 @@ function renderBook(bookId){
   header.innerHTML = `<h1 style="font-size:22px;">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}</h1>${b.archived?'<span class="tag-pill">Archived</span>':''}`;
   wrap.appendChild(header);
 
+  const syncTag = syncErrorBanner();
+  if(syncTag) wrap.appendChild(syncTag);
+
   const pages = bookPagesRead(b);
   const mult = bookMultiplier(b);
   const effective = bookEffectivePages(b);
@@ -844,13 +954,20 @@ function renderBook(bookId){
   summary.className='shelf';
   const target = b.targetPages;
   const pct = target ? Math.min(100, Math.round((pages/target)*100)) : null;
+  const velocity = bookVelocityStats(b);
+  const velocityText = velocity
+    ? `~${velocity.perWeek} pages/week${velocity.finishDate ? ` · finish by ${fmtDateShort(velocity.finishDate)}` : ''}`
+    : '';
   summary.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${pages}</div>
-        <div class="label">Pages read${target?` of ${target}`:''}</div>
+        <div class="num">${fmtNum(pages)}</div>
+        <div class="label">Pages read${target?` of ${fmtNum(target)}`:''}</div>
       </div>
-      ${mult>1 ? `<div class="next">${mult}× bonus<br>= ${effective}p counted</div>` : ''}
+      ${(mult>1 || velocityText) ? `<div class="next">
+        ${mult>1 ? `${mult}× bonus = ${fmtNum(effective)}p counted<br>` : ''}
+        ${velocityText}
+      </div>` : ''}
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
   `;
@@ -1007,26 +1124,64 @@ function openBookEditSheet(bookId){
 
 function openEntrySheet(bookId){
   const b = store.data.books.find(x=>x.id===bookId);
+  // Use >= (not >) so that when multiple entries share the same date, the
+  // most recently *added* one (later in the array) wins the tie, rather than
+  // whichever happened to be encountered first by reduce.
+  const lastEntry = b.entries.length ? b.entries.reduce((a,e)=> e.date>=a.date?e:a) : null;
+  const basePages = bookPagesRead(b);
   openSheet(`
     <h2>Log progress — ${escapeHtml(b.title)}</h2>
+    ${lastEntry ? `<div class="last-entry-hint">Last logged: p.${lastEntry.page} · ${fmtDate(lastEntry.date)}</div>` : ''}
     <div class="field"><label>Date</label><input id="f-date" type="date" value="${todayStr()}"></div>
-    <div class="field"><label>Page you're on</label><input id="f-page" type="number" inputmode="numeric" placeholder="e.g. 145"></div>
+    <div class="field">
+      <label>Page you're on</label>
+      <div class="stepper-row">
+        <button type="button" class="stepper-btn" data-step="-10">−10</button>
+        <button type="button" class="stepper-btn" data-step="-1">−1</button>
+        <input id="f-page" class="stepper-input" type="number" inputmode="numeric" placeholder="${basePages}">
+        <button type="button" class="stepper-btn" data-step="1">+1</button>
+        <button type="button" class="stepper-btn" data-step="10">+10</button>
+      </div>
+      <div id="f-page-delta" class="delta-hint"></div>
+    </div>
     <div class="btn-row">
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Save entry</button>
     </div>
   `, (root)=>{
+    const hasPriorEntries = b.entries.length > 0;
+    const deltaEl = root.querySelector('#f-page-delta');
+    const pageInput = root.querySelector('#f-page');
+    const updateDeltaHint = ()=>{
+      const typed = parseInt(pageInput.value, 10);
+      const delta = typed - basePages;
+      deltaEl.textContent = (hasPriorEntries && !isNaN(typed) && delta > 0) ? `+${delta} pages since last entry` : '';
+    };
+    pageInput.addEventListener('input', updateDeltaHint);
     root.querySelector('#f-cancel').addEventListener('click', closeSheet);
+    root.querySelectorAll('.stepper-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const step = parseInt(btn.getAttribute('data-step'), 10);
+        const typed = parseInt(pageInput.value, 10);
+        const current = isNaN(typed) ? basePages : typed;
+        pageInput.value = Math.max(0, current + step);
+        updateDeltaHint();
+      });
+    });
     root.querySelector('#f-save').addEventListener('click', ()=>{
       const date = root.querySelector('#f-date').value || todayStr();
-      const page = parseInt(root.querySelector('#f-page').value, 10);
+      const page = parseInt(pageInput.value, 10);
       if(isNaN(page) || page < 0) return;
+      const beforeTotal = totalPagesRead(store.data.books);
       b.entries = b.entries.filter(e=>e.date!==date);
       b.entries.push({date, page});
       b.updatedAt = Date.now();
       saveData(); closeSheet(); render();
+      const afterTotal = totalPagesRead(store.data.books);
+      const crossedMilestone = newlyCrossedMilestone(beforeTotal, afterTotal);
+      if(crossedMilestone) openMilestoneCelebration(crossedMilestone);
     });
-    root.querySelector('#f-page').focus();
+    pageInput.focus();
   });
 }
 
