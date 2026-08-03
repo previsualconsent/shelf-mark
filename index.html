@@ -422,6 +422,16 @@ function render(){
   else if(store.view.screen==='home') app.appendChild(renderHome());
   else if(store.view.screen==='book') app.appendChild(renderBook(store.view.bookId));
   document.getElementById('fab').style.display = store.view.screen==='home' ? 'flex' : 'none';
+  sizeSpineTitles();
+}
+
+/* Spine title labels only fit on wide-enough book spines; since spine width
+   depends on flex-shrink layout (fixed width until the shelf is full, then
+   shrinking to fit), it can only be measured after the shelf is in the DOM. */
+function sizeSpineTitles(){
+  document.querySelectorAll('.spine').forEach(spine=>{
+    spine.classList.toggle('spine-has-title', spine.offsetWidth >= 28);
+  });
 }
 
 function syncErrorBanner(){
@@ -549,14 +559,16 @@ function renderHome(){
   const shelf = document.createElement('div');
   shelf.className = 'shelf';
 
-  const spinesHtml = store.data.books.length ? store.data.books.map(b=>{
+  const shelfBooks = store.data.books.filter(b=>!b.archived);
+  const spinesHtml = shelfBooks.length ? shelfBooks.map(b=>{
     const pages = bookEffectivePages(b);
-    const maxPages = Math.max(...store.data.books.map(bookEffectivePages), 1);
-    const h = Math.max(14, Math.round((pages/maxPages)*76));
+    const maxPages = Math.max(...shelfBooks.map(bookEffectivePages), 1);
+    const h = Math.max(20, Math.round((pages/maxPages)*118));
     const hue = colorForBook(b.id);
     const completed = bookIsCompleted(b);
-    return `<div class="spine${b.archived?' spine-archived':''}" data-book-id="${b.id}" data-spine-label="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}" style="height:${h}px; background:${hue};" title="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}">
+    return `<div class="spine" data-book-id="${b.id}" data-spine-label="${escapeHtml(b.title)}${completed?' (completed)':''}" style="height:${h}px; background:${hue};" title="${escapeHtml(b.title)}${completed?' (completed)':''}">
       ${completed ? '<div class="spine-check">✓</div>' : ''}
+      <div class="spine-title">${escapeHtml(b.title)}</div>
     </div>`;
   }).join('') : `<div style="flex:1; text-align:center; font-family:Inter,sans-serif; font-size:12px; color:var(--ink-soft); align-self:center;">No books yet</div>`;
 
