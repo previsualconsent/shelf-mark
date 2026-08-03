@@ -468,13 +468,10 @@ function renderRoster(){
     el.innerHTML = `
       <div class="book-row">
         <div>
-          <div class="book-title">${escapeHtml(r.name)}</div>
+          <div class="roster-name">${escapeHtml(r.name)}</div>
           <div class="book-meta">${fmtNum(total)} pages read</div>
         </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="book-page">${fmtNum(total)}p</div>
-          <button class="del-x" data-share="${r.uid}" title="Share link" style="font-size:18px;">🔗</button>
-        </div>
+        <button class="del-x" data-share="${r.uid}" title="Share link" style="font-size:18px;">🔗</button>
       </div>`;
     el.addEventListener('click', (e)=>{
       if(e.target.closest('[data-share]')) return;

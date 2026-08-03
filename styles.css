@@ -136,6 +136,7 @@
   .book-archived{ opacity:0.6; }
   .book-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .book-title{ font-family:'Fraunces', serif; font-weight:600; font-size:17px; }
+  .roster-name{ font-family:'Fraunces', serif; font-weight:700; font-size:20px; }
   .completed-check{ color:var(--gold); }
   .tag-pill{
     font-family:'Inter', sans-serif; font-size:10px; text-transform:uppercase; letter-spacing:0.6px;
