@@ -572,13 +572,18 @@ function renderHome(){
     </div>`;
   }).join('') : `<div style="flex:1; text-align:center; font-family:Inter,sans-serif; font-size:12px; color:var(--ink-soft); align-self:center;">No books yet</div>`;
 
+  const toNext = interval - (total%interval);
+  const progressPct = Math.round(((interval-toNext)/interval)*100);
   shelf.innerHTML = `
     <div class="shelf-total">
       <div>
         <div class="num">${fmtNum(total)}</div>
         <div class="label">Total pages read</div>
       </div>
-      <div class="next">${fmtNum(interval - (total%interval))} pages to<br>next reward (${fmtNum(nextMilestone)})</div>
+    </div>
+    <div class="reward-strip">
+      <div class="reward-strip-track"><div class="reward-strip-fill" style="width:${progressPct}%"></div></div>
+      <div class="reward-strip-text"><strong>${fmtNum(toNext)} pages</strong> to next reward (${fmtNum(nextMilestone)})</div>
     </div>
     <div class="spines">${spinesHtml}</div>
   `;

@@ -81,6 +81,15 @@
   .shelf-total .next{
     font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft); text-align:right;
   }
+  .reward-strip{ margin-bottom:14px; }
+  .reward-strip-track{
+    height:6px; background:var(--rule); border-radius:4px; overflow:hidden; margin-bottom:6px;
+  }
+  .reward-strip-fill{ height:100%; background:var(--gold); border-radius:4px; transition:width 0.4s ease; }
+  .reward-strip-text{
+    font-family:'Inter', sans-serif; font-size:13px; color:var(--ink-soft);
+  }
+  .reward-strip-text strong{ color:var(--ink); font-weight:600; }
   .spines{
     display:flex; align-items:flex-end; gap:4px; height:120px; padding:0 2px 6px;
     border-bottom:2px solid var(--ink); margin:20px 0 2px;
