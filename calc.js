@@ -17,11 +17,19 @@
     return Math.round(bookPagesRead(book) * bookMultiplier(book));
   }
 
+  function bookAutoCompleted(book) {
+    return !!book.targetPages && bookPagesRead(book) >= book.targetPages;
+  }
+
+  function bookIsCompleted(book) {
+    return bookAutoCompleted(book) || !!book.completed;
+  }
+
   function totalPagesRead(books) {
     return books.reduce((sum, b) => sum + bookEffectivePages(b), 0);
   }
 
-  const api = { bookPagesRead, bookMultiplier, bookEffectivePages, totalPagesRead };
+  const api = { bookPagesRead, bookMultiplier, bookEffectivePages, bookAutoCompleted, bookIsCompleted, totalPagesRead };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;

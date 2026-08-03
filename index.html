@@ -345,12 +345,6 @@ function rewardInterval(){
   const n = parseInt(store.data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
 }
-function bookAutoCompleted(book){
-  return !!book.targetPages && bookPagesRead(book) >= book.targetPages;
-}
-function bookIsCompleted(book){
-  return bookAutoCompleted(book) || !!book.completed;
-}
 function sortedEntries(book){
   return [...book.entries].sort((a,b)=> a.date.localeCompare(b.date));
 }
