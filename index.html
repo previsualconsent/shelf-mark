@@ -1006,31 +1006,21 @@ function renderBook(bookId){
 
   wrap.appendChild(navRow);
 
-  const statusRow = document.createElement('div');
-  statusRow.className='btn-row';
-  statusRow.style.marginBottom='14px';
-
   if(!auto){
+    const statusRow = document.createElement('div');
+    statusRow.className='btn-row';
+    statusRow.style.marginBottom='14px';
     const finishBtn = document.createElement('button');
     finishBtn.className='btn btn-secondary';
+    finishBtn.style.width='100%';
     finishBtn.textContent = b.completed ? 'Mark as unfinished' : 'Mark as finished';
     finishBtn.addEventListener('click', ()=>{
       b.completed = !b.completed; b.updatedAt = Date.now();
       saveData(); render();
     });
     statusRow.appendChild(finishBtn);
+    wrap.appendChild(statusRow);
   }
-
-  const archiveBtn = document.createElement('button');
-  archiveBtn.className='btn btn-secondary';
-  archiveBtn.textContent = b.archived ? 'Unarchive' : 'Archive';
-  archiveBtn.addEventListener('click', ()=>{
-    b.archived = !b.archived; b.updatedAt = Date.now();
-    saveData(); render();
-  });
-  statusRow.appendChild(archiveBtn);
-
-  wrap.appendChild(statusRow);
 
   wrap.appendChild(sectionTitle('History'));
   const histCard = document.createElement('div');
@@ -1053,6 +1043,16 @@ function renderBook(bookId){
       saveData(); render();
     });
   });
+
+  const archiveBtn = document.createElement('button');
+  archiveBtn.className='btn btn-danger';
+  archiveBtn.style.cssText='margin-top:20px; width:100%; text-align:center;';
+  archiveBtn.textContent = b.archived ? 'Unarchive this book' : 'Archive this book';
+  archiveBtn.addEventListener('click', ()=>{
+    b.archived = !b.archived; b.updatedAt = Date.now();
+    saveData(); render();
+  });
+  wrap.appendChild(archiveBtn);
 
   return wrap;
 }
