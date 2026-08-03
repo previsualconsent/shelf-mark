@@ -1074,17 +1074,40 @@ backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) closeSheet(); 
 
 document.getElementById('fab').addEventListener('click', openAddBookSheet);
 
+/* Page multiplier is tucked behind "More options" since it's rarely used;
+   it starts expanded when the book already has one set, so editing it
+   doesn't require rediscovering the toggle. */
+function moreOptionsHtml(multValue, startOpen){
+  return `
+    <button type="button" class="more-options-toggle" id="f-more-toggle">More options ${startOpen?'▲':'▾'}</button>
+    <div class="field more-options" id="f-more-options" style="display:${startOpen?'block':'none'};">
+      <label>Page multiplier (optional)</label>
+      <input id="f-mult" type="number" inputmode="decimal" step="0.5" min="1" value="${multValue}">
+      <div class="field-hint">e.g. 2× if you count illustrated spreads as double</div>
+    </div>`;
+}
+function wireMoreOptionsToggle(root){
+  const toggle = root.querySelector('#f-more-toggle');
+  const panel = root.querySelector('#f-more-options');
+  toggle.addEventListener('click', ()=>{
+    const open = panel.style.display !== 'none';
+    panel.style.display = open ? 'none' : 'block';
+    toggle.textContent = `More options ${open?'▾':'▲'}`;
+  });
+}
+
 function openAddBookSheet(){
   openSheet(`
     <h2>Add a book</h2>
     <div class="field"><label>Title</label><input id="f-title" type="text" placeholder="e.g. The Hobbit"></div>
     <div class="field"><label>Total pages (optional)</label><input id="f-target" type="number" inputmode="numeric" placeholder="e.g. 310"></div>
-    <div class="field"><label>Bonus factor (optional)</label><input id="f-mult" type="number" inputmode="decimal" step="0.5" min="1" placeholder="e.g. 2 for double pages"></div>
+    ${moreOptionsHtml('', false)}
     <div class="btn-row">
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Add book</button>
     </div>
   `, (root)=>{
+    wireMoreOptionsToggle(root);
     root.querySelector('#f-cancel').addEventListener('click', closeSheet);
     root.querySelector('#f-save').addEventListener('click', ()=>{
       const title = root.querySelector('#f-title').value.trim();
@@ -1101,17 +1124,19 @@ function openAddBookSheet(){
 
 function openBookEditSheet(bookId){
   const b = store.data.books.find(x=>x.id===bookId);
+  const mult = bookMultiplier(b);
   openSheet(`
     <h2>Edit book</h2>
     <div class="field"><label>Title</label><input id="f-title" type="text" value="${escapeHtml(b.title)}"></div>
     <div class="field"><label>Total pages (optional)</label><input id="f-target" type="number" inputmode="numeric" value="${b.targetPages||''}"></div>
-    <div class="field"><label>Bonus factor (optional)</label><input id="f-mult" type="number" inputmode="decimal" step="0.5" min="1" value="${bookMultiplier(b)}"></div>
+    ${moreOptionsHtml(mult, mult > 1)}
     <div class="btn-row">
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Save</button>
     </div>
     <button class="btn btn-danger" id="f-delete" style="margin-top:16px; width:100%; text-align:center;">Delete this book</button>
   `, (root)=>{
+    wireMoreOptionsToggle(root);
     root.querySelector('#f-cancel').addEventListener('click', closeSheet);
     root.querySelector('#f-save').addEventListener('click', ()=>{
       const title = root.querySelector('#f-title').value.trim();
