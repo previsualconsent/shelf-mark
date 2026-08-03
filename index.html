@@ -545,11 +545,6 @@ function renderHome(){
   header.innerHTML = `<h1>Shelfmark</h1><span class="tag">Reading Tracker</span>`;
   wrap.appendChild(header);
 
-  const versionTag = document.createElement('div');
-  versionTag.className = 'version-tag';
-  versionTag.textContent = `v${APP_VERSION}`;
-  wrap.appendChild(versionTag);
-
   const syncTag = syncErrorBanner();
   if(syncTag) wrap.appendChild(syncTag);
 
@@ -666,6 +661,7 @@ function optionsCard(){
       <button class="btn btn-secondary" id="btn-import">Import data</button>
     </div>
     <input type="file" id="import-file" accept="application/json" style="display:none;">
+    <div class="about-line">Shelfmark v${APP_VERSION}</div>
   `;
   el.querySelector('#reward-interval-input').addEventListener('change', (e)=>{
     const n = parseInt(e.target.value, 10);

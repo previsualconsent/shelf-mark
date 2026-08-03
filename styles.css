@@ -224,6 +224,10 @@
   }
   .reward-input:disabled{ cursor:not-allowed; }
 
+  .about-line{
+    font-family:'Inter', sans-serif; font-size:11px; color:var(--ink-soft); opacity:0.6;
+    text-align:center; margin-top:14px;
+  }
   .reward-settings{
     display:flex; align-items:center; gap:8px; padding:0 2px 10px; border-bottom:1px solid var(--rule); margin-bottom:8px;
     font-family:'Inter', sans-serif; font-size:12px; color:var(--ink-soft);
