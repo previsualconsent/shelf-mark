@@ -137,6 +137,14 @@
   .book-row{ display:flex; justify-content:space-between; align-items:center; gap:10px; }
   .book-title{ font-family:'Fraunces', serif; font-weight:600; font-size:17px; }
   .roster-name{ font-family:'Fraunces', serif; font-weight:700; font-size:20px; }
+  .share-hint{
+    font-family:'Inter', sans-serif; font-size:12px; color:var(--page-warm); opacity:0.75;
+    margin:-4px 4px 10px;
+  }
+  .icon-btn{
+    background:none; border:none; cursor:pointer; padding:6px; color:var(--ink-soft); flex:none;
+    display:flex; align-items:center; justify-content:center;
+  }
   .completed-check{ color:var(--gold); }
   .tag-pill{
     font-family:'Inter', sans-serif; font-size:10px; text-transform:uppercase; letter-spacing:0.6px;
