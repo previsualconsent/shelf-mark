@@ -3,7 +3,7 @@
    localStorage, so this worker doesn't need real offline logic. It only
    caches the static app-shell files with a basic cache-first strategy. */
 
-const CACHE_NAME = 'shelfmark-shell-v19';
+const CACHE_NAME = 'shelfmark-shell-v22';
 const SHELL_FILES = [
   './',
   './index.html',
