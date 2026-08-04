@@ -319,6 +319,19 @@ window.addEventListener('popstate', (e)=>{
     return;
   }
   hideSheetUI();
+  if(store.roster.length === 0){
+    // The mandatory first-run prompt was dismissed via back — reopen it.
+    ensureInitialReader().then(()=>{
+      store.roster.forEach(r=>{
+        if(!store.peopleCache[r.uid]) store.peopleCache[r.uid] = loadCachedData(r.uid);
+        attachListener(r.uid);
+      });
+      selectPerson(store.roster[0].uid);
+      history.replaceState(historyStateFor(store.view), '');
+      render();
+    });
+    return;
+  }
   store.view = { screen: state.screen, bookId: state.bookId || null };
   render();
 });
@@ -1295,6 +1308,7 @@ async function init(){
   mergeIncomingAddParam();
   store.roster = loadRoster();
   const devLoaded = await loadDevFixture();
+  history.replaceState(historyStateFor(store.view), '');
   if(!devLoaded) await ensureInitialReader();
   store.roster.forEach(r=>{
     if(!store.peopleCache[r.uid]) store.peopleCache[r.uid] = loadCachedData(r.uid);
