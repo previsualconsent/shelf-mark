@@ -1080,6 +1080,54 @@ function closeSheet(){
 }
 backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) closeSheet(); });
 
+function alertSheet(message){
+  openSheet(`
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px; white-space:pre-wrap;">${escapeHtml(message)}</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="f-ok" style="width:100%;">OK</button>
+    </div>
+  `, (root)=>{
+    root.querySelector('#f-ok').addEventListener('click', closeSheet);
+  });
+}
+
+function confirmSheet(message, onConfirm){
+  openSheet(`
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px; white-space:pre-wrap;">${escapeHtml(message)}</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="f-cancel">Cancel</button>
+      <button class="btn btn-primary" id="f-confirm">Confirm</button>
+    </div>
+  `, (root)=>{
+    root.querySelector('#f-cancel').addEventListener('click', closeSheet);
+    root.querySelector('#f-confirm').addEventListener('click', ()=>{
+      hideSheetUI();
+      onConfirm();
+    });
+  });
+}
+
+function promptSheet(message, defaultValue, onSubmit, opts){
+  const cancelable = !opts || opts.cancelable !== false;
+  openSheet(`
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px; white-space:pre-wrap;">${escapeHtml(message)}</div>
+    <div class="field"><input id="f-prompt-input" type="text" value="${escapeHtml(defaultValue||'')}"></div>
+    <div class="btn-row">
+      ${cancelable ? `<button class="btn btn-secondary" id="f-cancel">Cancel</button>` : ''}
+      <button class="btn btn-primary" id="f-submit">Save</button>
+    </div>
+  `, (root)=>{
+    const input = root.querySelector('#f-prompt-input');
+    if(cancelable) root.querySelector('#f-cancel').addEventListener('click', closeSheet);
+    root.querySelector('#f-submit').addEventListener('click', ()=>{
+      const value = input.value;
+      hideSheetUI();
+      onSubmit(value);
+    });
+    input.focus();
+  });
+}
+
 document.getElementById('fab').addEventListener('click', openAddBookSheet);
 
 /* Page multiplier is tucked behind "More options" since it's rarely used;
