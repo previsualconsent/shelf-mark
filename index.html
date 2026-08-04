@@ -1118,10 +1118,12 @@ function openBookMoreSheet(bookId){
   const auto = bookAutoCompleted(b);
   openSheet(`
     <h2>More — ${escapeHtml(b.title)}</h2>
-    ${!auto ? `<button class="btn btn-secondary" id="f-toggle-finished" style="width:100%; margin-bottom:10px;">${b.completed ? 'Mark as unfinished' : 'Mark as finished'}</button>` : ''}
-    <button class="btn btn-secondary" id="f-toggle-archived" style="width:100%;">${b.archived ? 'Unarchive this book' : 'Archive this book'}</button>
-    <button class="btn btn-danger" id="f-delete" style="margin-top:16px; width:100%; text-align:center;">Delete this book</button>
-    <button class="btn btn-secondary" id="f-close" style="margin-top:16px; width:100%;">Close</button>
+    <div class="sheet-menu">
+      ${!auto ? `<button class="btn btn-secondary" id="f-toggle-finished">${b.completed ? 'Mark as unfinished' : 'Mark as finished'}</button>` : ''}
+      <button class="btn btn-secondary" id="f-toggle-archived">${b.archived ? 'Unarchive this book' : 'Archive this book'}</button>
+      <button class="btn btn-danger" id="f-delete">Delete this book</button>
+    </div>
+    <button class="btn btn-secondary" id="f-close" style="width:100%; margin-top:16px;">Close</button>
   `, (root)=>{
     const finishBtn = root.querySelector('#f-toggle-finished');
     if(finishBtn){

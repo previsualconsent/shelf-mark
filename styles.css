@@ -329,7 +329,10 @@
   .btn-primary{ background:var(--cover); color:var(--page); }
   .btn-secondary{ background:var(--rule); color:var(--ink); }
   .btn-accent{ background:var(--gold); color:var(--cover-dark); }
-  .btn-danger{ background:transparent; color:var(--danger); text-decoration:underline; font-weight:500; }
+  .btn-danger{ background:var(--danger); color:var(--page); }
+
+  .sheet-menu{ display:flex; flex-direction:column; gap:10px; }
+  .sheet-menu .btn{ width:100%; }
 
   .history{ margin-top:14px; }
   .history-row{
