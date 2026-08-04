@@ -345,12 +345,6 @@ function rewardInterval(){
   const n = parseInt(store.data.rewardInterval, 10);
   return (!n || n < 10) ? 100 : n;
 }
-function bookAutoCompleted(book){
-  return !!book.targetPages && bookPagesRead(book) >= book.targetPages;
-}
-function bookIsCompleted(book){
-  return bookAutoCompleted(book) || !!book.completed;
-}
 function sortedEntries(book){
   return [...book.entries].sort((a,b)=> a.date.localeCompare(b.date));
 }
@@ -451,6 +445,10 @@ function renderRoster(){
   if(syncTag) wrap.appendChild(syncTag);
 
   wrap.appendChild(sectionTitle('Readers'));
+  const shareHint = document.createElement('div');
+  shareHint.className = 'share-hint';
+  shareHint.textContent = 'Tap the share icon to sync a reader to another device via a link — no account needed.';
+  wrap.appendChild(shareHint);
   store.roster.forEach(r=>{
     const el = document.createElement('div');
     el.className = 'card book-card';
@@ -458,13 +456,10 @@ function renderRoster(){
     el.innerHTML = `
       <div class="book-row">
         <div>
-          <div class="book-title">${escapeHtml(r.name)}</div>
+          <div class="roster-name">${escapeHtml(r.name)}</div>
           <div class="book-meta">${fmtNum(total)} pages read</div>
         </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <div class="book-page">${fmtNum(total)}p</div>
-          <button class="del-x" data-share="${r.uid}" title="Share link" style="font-size:18px;">🔗</button>
-        </div>
+        <button class="icon-btn" data-share="${r.uid}" title="Share link" aria-label="Share link for ${escapeHtml(r.name)}">${shareIconSvg()}</button>
       </div>`;
     el.addEventListener('click', (e)=>{
       if(e.target.closest('[data-share]')) return;
@@ -535,11 +530,6 @@ function renderHome(){
   header.innerHTML = `<h1>Shelfmark</h1><span class="tag">Reading Tracker</span>`;
   wrap.appendChild(header);
 
-  const versionTag = document.createElement('div');
-  versionTag.className = 'version-tag';
-  versionTag.textContent = `v${APP_VERSION}`;
-  wrap.appendChild(versionTag);
-
   const syncTag = syncErrorBanner();
   if(syncTag) wrap.appendChild(syncTag);
 
@@ -549,42 +539,41 @@ function renderHome(){
   const shelf = document.createElement('div');
   shelf.className = 'shelf';
 
-  const spinesHtml = store.data.books.length ? store.data.books.map(b=>{
-    const pages = bookEffectivePages(b);
-    const maxPages = Math.max(...store.data.books.map(bookEffectivePages), 1);
-    const h = Math.max(14, Math.round((pages/maxPages)*76));
-    const hue = colorForBook(b.id);
+  const SPINE_HEIGHT = 120;
+  const shelfBooks = store.data.books.filter(b=>!b.archived).sort((a,b)=>(a.updatedAt||0)-(b.updatedAt||0));
+  const spinesHtml = shelfBooks.length ? shelfBooks.map(b=>{
+    const color = colorForBook(b.id);
+    const { widthPx, estimated } = computeSpineWidth(b, shelfBooks);
+    const { fillPx, mode } = computeSpineFill(b, SPINE_HEIGHT);
+    const ticks = computeSpineTicks(b, shelfBooks, SPINE_HEIGHT, fillPx);
     const completed = bookIsCompleted(b);
-    return `<div class="spine${b.archived?' spine-archived':''}" data-book-id="${b.id}" data-spine-label="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}" style="height:${h}px; background:${hue};" title="${escapeHtml(b.title)}${completed?' (completed)':''}${b.archived?' (archived)':''}">
+    const unreadBg = `color-mix(in srgb, ${color} 22%, var(--page) 78%)`;
+    const ticksHtml = ticks.map(t=>`<div class="spine-tick${t.muted?' spine-tick-muted':''}" style="top:${t.topPx}px;"></div>`).join('');
+    const fillHtml = mode==='empty' ? '' : `<div class="spine-fill${mode!=='proportional'?' spine-fill-muted':''}" style="height:${fillPx}px; background:${color};"></div>`;
+    return `<div class="spine${estimated?' spine-estimated':''}" data-book-id="${b.id}" style="width:${Math.round(widthPx)}px; height:${SPINE_HEIGHT}px; background:${unreadBg};" title="${escapeHtml(b.title)}${completed?' (completed)':''}">
+      <div class="spine-ticks">${ticksHtml}</div>
+      ${fillHtml}
       ${completed ? '<div class="spine-check">✓</div>' : ''}
+      <div class="spine-title">${escapeHtml(b.title)}</div>
     </div>`;
   }).join('') : `<div style="flex:1; text-align:center; font-family:Inter,sans-serif; font-size:12px; color:var(--ink-soft); align-self:center;">No books yet</div>`;
 
+  const toNext = interval - (total%interval);
+  const progressPct = Math.round(((interval-toNext)/interval)*100);
   shelf.innerHTML = `
     <div class="shelf-total">
       <div>
         <div class="num">${fmtNum(total)}</div>
         <div class="label">Total pages read</div>
       </div>
-      <div class="next">${fmtNum(interval - (total%interval))} pages to<br>next reward (${fmtNum(nextMilestone)})</div>
+    </div>
+    <div class="reward-strip">
+      <div class="reward-strip-track"><div class="reward-strip-fill" style="width:${progressPct}%"></div></div>
+      <div class="reward-strip-text"><strong>${fmtNum(toNext)} pages</strong> to next reward (${fmtNum(nextMilestone)})</div>
     </div>
     <div class="spines">${spinesHtml}</div>
   `;
   wrap.appendChild(shelf);
-
-  shelf.querySelectorAll('.spine[data-book-id]').forEach(spine=>{
-    spine.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      const existing = spine.querySelector('.spine-label');
-      shelf.querySelectorAll('.spine-label').forEach(l=>l.remove());
-      if(existing) return;
-      const label = document.createElement('div');
-      label.className = 'spine-label';
-      label.textContent = spine.getAttribute('data-spine-label');
-      spine.appendChild(label);
-      setTimeout(()=>label.remove(), 2500);
-    });
-  });
 
   const archivedCount = store.data.books.filter(b=>b.archived).length;
   const booksHeader = document.createElement('div');
@@ -649,6 +638,7 @@ function optionsCard(){
       <button class="btn btn-secondary" id="btn-import">Import data</button>
     </div>
     <input type="file" id="import-file" accept="application/json" style="display:none;">
+    <div class="about-line">Shelfmark v${APP_VERSION}</div>
   `;
   el.querySelector('#reward-interval-input').addEventListener('change', (e)=>{
     const n = parseInt(e.target.value, 10);
@@ -716,6 +706,10 @@ function importData(file){
   };
   reader.onerror = ()=> alert('Could not read that file.');
   reader.readAsText(file);
+}
+
+function shareIconSvg(){
+  return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
 }
 
 function colorForBook(id){
@@ -989,31 +983,21 @@ function renderBook(bookId){
 
   wrap.appendChild(navRow);
 
-  const statusRow = document.createElement('div');
-  statusRow.className='btn-row';
-  statusRow.style.marginBottom='14px';
-
   if(!auto){
+    const statusRow = document.createElement('div');
+    statusRow.className='btn-row';
+    statusRow.style.marginBottom='14px';
     const finishBtn = document.createElement('button');
     finishBtn.className='btn btn-secondary';
+    finishBtn.style.width='100%';
     finishBtn.textContent = b.completed ? 'Mark as unfinished' : 'Mark as finished';
     finishBtn.addEventListener('click', ()=>{
       b.completed = !b.completed; b.updatedAt = Date.now();
       saveData(); render();
     });
     statusRow.appendChild(finishBtn);
+    wrap.appendChild(statusRow);
   }
-
-  const archiveBtn = document.createElement('button');
-  archiveBtn.className='btn btn-secondary';
-  archiveBtn.textContent = b.archived ? 'Unarchive' : 'Archive';
-  archiveBtn.addEventListener('click', ()=>{
-    b.archived = !b.archived; b.updatedAt = Date.now();
-    saveData(); render();
-  });
-  statusRow.appendChild(archiveBtn);
-
-  wrap.appendChild(statusRow);
 
   wrap.appendChild(sectionTitle('History'));
   const histCard = document.createElement('div');
@@ -1037,6 +1021,16 @@ function renderBook(bookId){
     });
   });
 
+  const archiveBtn = document.createElement('button');
+  archiveBtn.className='btn btn-danger';
+  archiveBtn.style.cssText='margin-top:20px; width:100%; text-align:center;';
+  archiveBtn.textContent = b.archived ? 'Unarchive this book' : 'Archive this book';
+  archiveBtn.addEventListener('click', ()=>{
+    b.archived = !b.archived; b.updatedAt = Date.now();
+    saveData(); render();
+  });
+  wrap.appendChild(archiveBtn);
+
   return wrap;
 }
 
@@ -1057,17 +1051,40 @@ backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) closeSheet(); 
 
 document.getElementById('fab').addEventListener('click', openAddBookSheet);
 
+/* Page multiplier is tucked behind "More options" since it's rarely used;
+   it starts expanded when the book already has one set, so editing it
+   doesn't require rediscovering the toggle. */
+function moreOptionsHtml(multValue, startOpen){
+  return `
+    <button type="button" class="more-options-toggle" id="f-more-toggle">More options ${startOpen?'▲':'▾'}</button>
+    <div class="field more-options" id="f-more-options" style="display:${startOpen?'block':'none'};">
+      <label>Page multiplier (optional)</label>
+      <input id="f-mult" type="number" inputmode="decimal" step="0.5" min="1" value="${multValue}">
+      <div class="field-hint">e.g. 2× if you count illustrated spreads as double</div>
+    </div>`;
+}
+function wireMoreOptionsToggle(root){
+  const toggle = root.querySelector('#f-more-toggle');
+  const panel = root.querySelector('#f-more-options');
+  toggle.addEventListener('click', ()=>{
+    const open = panel.style.display !== 'none';
+    panel.style.display = open ? 'none' : 'block';
+    toggle.textContent = `More options ${open?'▾':'▲'}`;
+  });
+}
+
 function openAddBookSheet(){
   openSheet(`
     <h2>Add a book</h2>
     <div class="field"><label>Title</label><input id="f-title" type="text" placeholder="e.g. The Hobbit"></div>
     <div class="field"><label>Total pages (optional)</label><input id="f-target" type="number" inputmode="numeric" placeholder="e.g. 310"></div>
-    <div class="field"><label>Bonus factor (optional)</label><input id="f-mult" type="number" inputmode="decimal" step="0.5" min="1" placeholder="e.g. 2 for double pages"></div>
+    ${moreOptionsHtml('', false)}
     <div class="btn-row">
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Add book</button>
     </div>
   `, (root)=>{
+    wireMoreOptionsToggle(root);
     root.querySelector('#f-cancel').addEventListener('click', closeSheet);
     root.querySelector('#f-save').addEventListener('click', ()=>{
       const title = root.querySelector('#f-title').value.trim();
@@ -1084,17 +1101,19 @@ function openAddBookSheet(){
 
 function openBookEditSheet(bookId){
   const b = store.data.books.find(x=>x.id===bookId);
+  const mult = bookMultiplier(b);
   openSheet(`
     <h2>Edit book</h2>
     <div class="field"><label>Title</label><input id="f-title" type="text" value="${escapeHtml(b.title)}"></div>
     <div class="field"><label>Total pages (optional)</label><input id="f-target" type="number" inputmode="numeric" value="${b.targetPages||''}"></div>
-    <div class="field"><label>Bonus factor (optional)</label><input id="f-mult" type="number" inputmode="decimal" step="0.5" min="1" value="${bookMultiplier(b)}"></div>
+    ${moreOptionsHtml(mult, mult > 1)}
     <div class="btn-row">
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Save</button>
     </div>
     <button class="btn btn-danger" id="f-delete" style="margin-top:16px; width:100%; text-align:center;">Delete this book</button>
   `, (root)=>{
+    wireMoreOptionsToggle(root);
     root.querySelector('#f-cancel').addEventListener('click', closeSheet);
     root.querySelector('#f-save').addEventListener('click', ()=>{
       const title = root.querySelector('#f-title').value.trim();

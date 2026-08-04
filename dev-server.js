@@ -2,14 +2,14 @@
 /* Static file server for local dev that injects FIREBASE_APPCHECK_DEBUG_TOKEN
    from .env into index.html, so App Check uses a fixed debug token instead of
    generating a new one every run (see index.html's App Check setup comment).
-   Usage: node dev-server.js [port]  (default port 8000) */
+   Usage: node dev-server.js [port]  (default port 8123) */
 
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
 const ROOT = __dirname;
-const PORT = Number(process.argv[2]) || 8000;
+const PORT = Number(process.argv[2]) || 8123;
 
 function loadEnv(file) {
   const env = {};
