@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.23.0';
+const APP_VERSION = '2.24.0';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -74,6 +74,7 @@ const VERSION_HISTORY = [
   { v:'2.22.1', notes:'Spine titles are now vertically centered instead of anchored to the bottom.' },
   { v:'2.22.2', notes:'Spine tick marks now scale with a book\'s page multiplier, so a 2x/3x multiplier book shows twice/triple as many ticks.' },
   { v:'2.23.0', notes:'Moved Options into a dedicated Settings screen (behind a gear icon) and replaced the "Show archived" text link with a pill badge. Book detail\'s actions are now Log progress + Edit details up front, with Mark as finished/unfinished, Archive, and Delete consolidated behind a "More" menu.' },
+  { v:'2.24.0', notes:'Screen transitions and sheets now integrate with browser/device history, so the back button steps back through them instead of exiting the app. Replaced native alert/confirm/prompt dialogs with themed in-app sheets. Roster rows now show "Syncing…" instead of a stale page count while a reader\'s data is still loading from Firestore.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -160,9 +161,9 @@ function showShareLink(uid){
   const link = shareLinkFor(uid);
   const message = 'Send this link to the other device to add "'+rosterNameFor(uid)+'" there:\n\n'+link;
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(link).then(()=> alert('Link copied!\n\n'+message)).catch(()=> prompt(message, link));
+    navigator.clipboard.writeText(link).then(()=> alertSheet('Link copied!\n\n'+message)).catch(()=> promptSheet(message, link, ()=>{}));
   } else {
-    prompt(message, link);
+    promptSheet(message, link, ()=>{});
   }
 }
 
@@ -185,6 +186,7 @@ function loadCachedData(uid){
   try{
     const raw = localStorage.getItem('shelfmark-data-'+uid);
     if(!raw) return { books: [], rewardLabels: {}, rewardInterval: 100 };
+    store.hasSyncedOnce[uid] = true;
     const parsed = JSON.parse(raw);
     parsed.books = parsed.books || [];
     parsed.rewardLabels = normalizeRewardLabels(parsed.rewardLabels || {});
@@ -220,6 +222,7 @@ function attachListener(uid){
     if(!remote) return;
     const fresh = { books: remote.books || [], rewardLabels: normalizeRewardLabels(remote.rewardLabels || {}), rewardInterval: remote.rewardInterval || 100 };
     store.peopleCache[uid] = fresh;
+    store.hasSyncedOnce[uid] = true;
     try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
     if(uid === store.currentUid) store.data = fresh;
     render();
@@ -229,6 +232,9 @@ function personTotalPages(uid){
   const pd = store.peopleCache[uid];
   if(!pd) return 0;
   return (pd.books||[]).reduce((sum,b)=>sum+bookEffectivePages(b),0);
+}
+function hasReaderSynced(uid){
+  return !firebaseReady || isDevNoSync(uid) || !!store.hasSyncedOnce[uid];
 }
 function selectPerson(uid){
   store.currentUid = uid;
@@ -252,13 +258,19 @@ async function createReader(name){
   }
   return newUid;
 }
-async function ensureInitialReader(){
-  if(store.roster.length > 0) return;
-  let name = '';
-  while(!name){
-    name = (prompt('Welcome to Shelfmark! Whose reading shelf is this?') || '').trim();
-  }
-  await createReader(name);
+function ensureInitialReader(){
+  if(store.roster.length > 0) return Promise.resolve();
+  return new Promise((resolve)=>{
+    const ask = ()=>{
+      promptSheet('Welcome to Shelfmark! Whose reading shelf is this?', '', async (name)=>{
+        const trimmed = (name||'').trim();
+        if(!trimmed){ ask(); return; }
+        await createReader(trimmed);
+        resolve();
+      }, { cancelable:false });
+    };
+    ask();
+  });
 }
 
 /* Dev-only data loading: open with ?dev=<fixture> (e.g. ?dev=huge-total) to
@@ -309,7 +321,41 @@ const store = {
   data: { books: [], rewardLabels: {}, rewardInterval: 100 },
   view: { screen:'home', bookId:null },
   syncError: null,
+  hasSyncedOnce: {},
 };
+function historyStateFor(view){
+  return { screen: view.screen, bookId: view.bookId || null };
+}
+function navigateTo(view){
+  store.view = view;
+  history.pushState(historyStateFor(view), '');
+  render();
+}
+window.addEventListener('popstate', (e)=>{
+  const state = e.state || { screen: store.roster.length > 1 ? 'roster' : 'home', bookId: null };
+  if(state.sheet){
+    // Landed on a sheet's history marker that's no longer showing
+    // (its sheet was already dismissed via hideSheetUI) — skip past it.
+    history.back();
+    return;
+  }
+  hideSheetUI();
+  if(store.roster.length === 0){
+    // The mandatory first-run prompt was dismissed via back — reopen it.
+    ensureInitialReader().then(()=>{
+      store.roster.forEach(r=>{
+        if(!store.peopleCache[r.uid]) store.peopleCache[r.uid] = loadCachedData(r.uid);
+        attachListener(r.uid);
+      });
+      selectPerson(store.roster[0].uid);
+      history.replaceState(historyStateFor(store.view), '');
+      render();
+    });
+    return;
+  }
+  store.view = { screen: state.screen, bookId: state.bookId || null };
+  render();
+});
 let showArchived = false;
 let showAllRewards = false;
 
@@ -474,17 +520,19 @@ function renderRoster(){
     const el = document.createElement('div');
     el.className = 'card book-card';
     const total = personTotalPages(r.uid);
+    const synced = hasReaderSynced(r.uid);
     el.innerHTML = `
       <div class="book-row">
         <div>
           <div class="roster-name">${escapeHtml(r.name)}</div>
-          <div class="book-meta">${fmtNum(total)} pages read</div>
+          <div class="book-meta">${synced ? `${fmtNum(total)} pages read` : 'Syncing…'}</div>
         </div>
         <button class="icon-btn" data-share="${r.uid}" title="Share link" aria-label="Share link for ${escapeHtml(r.name)}">${shareIconSvg()}</button>
       </div>`;
     el.addEventListener('click', (e)=>{
       if(e.target.closest('[data-share]')) return;
-      selectPerson(r.uid); render();
+      selectPerson(r.uid);
+      navigateTo(store.view);
     });
     el.querySelector('[data-share]').addEventListener('click', (e)=>{
       e.stopPropagation();
@@ -526,9 +574,8 @@ function openAddReaderSheet(){
       const name = root.querySelector('#f-name').value.trim();
       if(!name) return;
       const newUid = await createReader(name);
-      closeSheet();
-      store.view = { screen:'roster' };
-      render();
+      hideSheetUI();
+      navigateTo({ screen:'roster', bookId:null });
       showShareLink(newUid);
     });
     root.querySelector('#f-name').focus();
@@ -542,7 +589,7 @@ function renderHome(){
     const back = document.createElement('button');
     back.className = 'back-link';
     back.textContent = '← Readers';
-    back.addEventListener('click', ()=>{ store.view = { screen:'roster' }; render(); });
+    back.addEventListener('click', ()=> navigateTo({ screen:'roster', bookId:null }));
     wrap.appendChild(back);
   }
 
@@ -553,14 +600,13 @@ function renderHome(){
     <button class="icon-btn" id="btn-open-settings" title="Settings" aria-label="Settings">${gearIconSvg()}</button>
   `;
   wrap.appendChild(header);
-  header.querySelector('#btn-open-settings').addEventListener('click', ()=>{
-    store.view = { screen:'settings' }; render();
-  });
+  header.querySelector('#btn-open-settings').addEventListener('click', ()=> navigateTo({ screen:'settings', bookId:null }));
 
   const syncTag = syncErrorBanner();
   if(syncTag) wrap.appendChild(syncTag);
 
   const total = totalPagesRead(store.data.books);
+  const synced = hasReaderSynced(store.currentUid);
   const interval = rewardInterval();
   const nextMilestone = (Math.floor(total/interval)+1)*interval;
   const shelf = document.createElement('div');
@@ -590,8 +636,8 @@ function renderHome(){
   shelf.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${fmtNum(total)}</div>
-        <div class="label">Total pages read</div>
+        <div class="num">${synced ? fmtNum(total) : '—'}</div>
+        <div class="label">${synced ? 'Total pages read' : 'Syncing…'}</div>
       </div>
     </div>
     <div class="reward-strip">
@@ -643,7 +689,7 @@ function renderSettings(){
   const back = document.createElement('button');
   back.className = 'back-link';
   back.textContent = '← Home';
-  back.addEventListener('click', ()=>{ store.view = { screen:'home' }; render(); });
+  back.addEventListener('click', ()=> navigateTo({ screen:'home', bookId:null }));
   wrap.appendChild(back);
 
   wrap.appendChild(sectionTitle('Options'));
@@ -731,19 +777,18 @@ function importData(file){
   reader.onload = ()=>{
     let parsed;
     try{ parsed = JSON.parse(reader.result); }
-    catch(e){ alert('That file isn\'t valid Shelfmark data (couldn\'t read it as JSON).'); return; }
+    catch(e){ alertSheet('That file isn\'t valid Shelfmark data (couldn\'t read it as JSON).'); return; }
     if(!parsed || !Array.isArray(parsed.books) || !parsed.books.every(isValidBook) || (parsed.rewardLabels != null && !isValidRewardLabels(parsed.rewardLabels))){
-      alert('That file isn\'t valid Shelfmark data.'); return;
+      alertSheet('That file isn\'t valid Shelfmark data.'); return;
     }
-    const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
-    if(!proceed) return;
-    store.data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
-    saveData();
-    store.view = {screen:'home'};
-    render();
-    alert('Import complete.');
+    confirmSheet('Import will replace all current books, history, and rewards with the contents of this file. Continue?', ()=>{
+      store.data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
+      saveData();
+      navigateTo({ screen:'home', bookId:null });
+      alertSheet('Import complete.');
+    });
   };
-  reader.onerror = ()=> alert('Could not read that file.');
+  reader.onerror = ()=> alertSheet('Could not read that file.');
   reader.readAsText(file);
 }
 
@@ -789,7 +834,7 @@ function bookCard(b){
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
     ${b.archived ? `<button class="btn btn-secondary btn-unarchive" style="width:100%; margin-top:10px;">Unarchive</button>` : ''}
   `;
-  el.addEventListener('click', ()=>{ store.view = {screen:'book', bookId:b.id}; render(); });
+  el.addEventListener('click', ()=> navigateTo({ screen:'book', bookId:b.id }));
   const unarchiveBtn = el.querySelector('.btn-unarchive');
   if(unarchiveBtn){
     unarchiveBtn.addEventListener('click', (e)=>{
@@ -962,7 +1007,11 @@ function rewardsCard(total){
 function renderBook(bookId){
   const b = store.data.books.find(x=>x.id===bookId);
   const wrap = document.createElement('div');
-  if(!b){ store.view={screen:'home'}; return renderHome(); }
+  if(!b){
+    store.view = { screen:'home', bookId:null };
+    history.replaceState(historyStateFor(store.view), '');
+    return renderHome();
+  }
 
   const auto = bookAutoCompleted(b);
   const completed = bookIsCompleted(b);
@@ -970,7 +1019,7 @@ function renderBook(bookId){
   const back = document.createElement('button');
   back.className = 'back-link';
   back.textContent = '← Books';
-  back.addEventListener('click', ()=>{ store.view={screen:'home'}; render(); });
+  back.addEventListener('click', ()=> navigateTo({ screen:'home', bookId:null }));
   wrap.appendChild(back);
 
   const header = document.createElement('header');
@@ -1071,10 +1120,66 @@ const sheetContent = document.getElementById('sheetContent');
 function openSheet(html, onMount){
   sheetContent.innerHTML = html;
   backdrop.classList.add('open');
+  history.pushState({ ...historyStateFor(store.view), sheet:true }, '');
   if(onMount) onMount(sheetContent);
 }
-function closeSheet(){ backdrop.classList.remove('open'); sheetContent.innerHTML=''; }
+/* Hides the sheet without touching history — use this when the caller is
+   about to navigate or open another sheet right after, to avoid racing
+   with closeSheet()'s history.back(). */
+function hideSheetUI(){ backdrop.classList.remove('open'); sheetContent.innerHTML=''; }
+function closeSheet(){
+  hideSheetUI();
+  if(history.state && history.state.sheet) history.back();
+}
 backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) closeSheet(); });
+
+function alertSheet(message){
+  openSheet(`
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px; white-space:pre-wrap;">${escapeHtml(message)}</div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="f-ok" style="width:100%;">OK</button>
+    </div>
+  `, (root)=>{
+    root.querySelector('#f-ok').addEventListener('click', closeSheet);
+  });
+}
+
+function confirmSheet(message, onConfirm){
+  openSheet(`
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px; white-space:pre-wrap;">${escapeHtml(message)}</div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" id="f-cancel">Cancel</button>
+      <button class="btn btn-primary" id="f-confirm">Confirm</button>
+    </div>
+  `, (root)=>{
+    root.querySelector('#f-cancel').addEventListener('click', closeSheet);
+    root.querySelector('#f-confirm').addEventListener('click', ()=>{
+      hideSheetUI();
+      onConfirm();
+    });
+  });
+}
+
+function promptSheet(message, defaultValue, onSubmit, opts){
+  const cancelable = !opts || opts.cancelable !== false;
+  openSheet(`
+    <div style="font-family:'Inter',sans-serif; font-size:14px; color:var(--ink-soft); margin-bottom:16px; white-space:pre-wrap;">${escapeHtml(message)}</div>
+    <div class="field"><input id="f-prompt-input" type="text" value="${escapeHtml(defaultValue||'')}"></div>
+    <div class="btn-row">
+      ${cancelable ? `<button class="btn btn-secondary" id="f-cancel">Cancel</button>` : ''}
+      <button class="btn btn-primary" id="f-submit">Save</button>
+    </div>
+  `, (root)=>{
+    const input = root.querySelector('#f-prompt-input');
+    if(cancelable) root.querySelector('#f-cancel').addEventListener('click', closeSheet);
+    root.querySelector('#f-submit').addEventListener('click', ()=>{
+      const value = input.value;
+      hideSheetUI();
+      onSubmit(value);
+    });
+    input.focus();
+  });
+}
 
 document.getElementById('fab').addEventListener('click', openAddBookSheet);
 
@@ -1180,10 +1285,12 @@ function openBookMoreSheet(bookId){
       saveData(); closeSheet(); render();
     });
     root.querySelector('#f-delete').addEventListener('click', ()=>{
-      if(confirm('Delete "'+b.title+'" and all its history?')){
+      confirmSheet('Delete "'+b.title+'" and all its history?', ()=>{
         store.data.books = store.data.books.filter(x=>x.id!==bookId);
-        saveData(); closeSheet(); store.view={screen:'home'}; render();
-      }
+        saveData();
+        hideSheetUI();
+        navigateTo({ screen:'home', bookId:null });
+      });
     });
     root.querySelector('#f-close').addEventListener('click', closeSheet);
   });
@@ -1243,7 +1350,7 @@ function openEntrySheet(bookId){
       b.entries = b.entries.filter(e=>e.date!==date);
       b.entries.push({date, page});
       b.updatedAt = Date.now();
-      saveData(); closeSheet(); render();
+      saveData(); hideSheetUI(); render();
       const afterTotal = totalPagesRead(store.data.books);
       const crossedMilestone = newlyCrossedMilestone(beforeTotal, afterTotal);
       if(crossedMilestone) openMilestoneCelebration(crossedMilestone);
@@ -1257,6 +1364,7 @@ async function init(){
   mergeIncomingAddParam();
   store.roster = loadRoster();
   const devLoaded = await loadDevFixture();
+  history.replaceState(historyStateFor(store.view), '');
   if(!devLoaded) await ensureInitialReader();
   store.roster.forEach(r=>{
     if(!store.peopleCache[r.uid]) store.peopleCache[r.uid] = loadCachedData(r.uid);
@@ -1266,9 +1374,10 @@ async function init(){
     if(store.roster.length <= 1){
       selectPerson(store.roster[0].uid);
     } else {
-      store.view = { screen:'roster' };
+      store.view = { screen:'roster', bookId:null };
     }
   }
+  history.replaceState(historyStateFor(store.view), '');
   render();
 }
 init();
