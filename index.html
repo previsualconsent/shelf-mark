@@ -290,6 +290,19 @@ const store = {
   view: { screen:'home', bookId:null },
   syncError: null,
 };
+function historyStateFor(view){
+  return { screen: view.screen, bookId: view.bookId || null };
+}
+function navigateTo(view){
+  store.view = view;
+  history.pushState(historyStateFor(view), '');
+  render();
+}
+window.addEventListener('popstate', (e)=>{
+  const state = e.state || { screen: store.roster.length > 1 ? 'roster' : 'home', bookId: null };
+  store.view = { screen: state.screen, bookId: state.bookId || null };
+  render();
+});
 let showArchived = false;
 let showAllRewards = false;
 
@@ -463,7 +476,8 @@ function renderRoster(){
       </div>`;
     el.addEventListener('click', (e)=>{
       if(e.target.closest('[data-share]')) return;
-      selectPerson(r.uid); render();
+      selectPerson(r.uid);
+      navigateTo(store.view);
     });
     el.querySelector('[data-share]').addEventListener('click', (e)=>{
       e.stopPropagation();
@@ -506,8 +520,7 @@ function openAddReaderSheet(){
       if(!name) return;
       const newUid = await createReader(name);
       closeSheet();
-      store.view = { screen:'roster' };
-      render();
+      navigateTo({ screen:'roster', bookId:null });
       showShareLink(newUid);
     });
     root.querySelector('#f-name').focus();
@@ -521,7 +534,7 @@ function renderHome(){
     const back = document.createElement('button');
     back.className = 'back-link';
     back.textContent = '← Readers';
-    back.addEventListener('click', ()=>{ store.view = { screen:'roster' }; render(); });
+    back.addEventListener('click', ()=> navigateTo({ screen:'roster', bookId:null }));
     wrap.appendChild(back);
   }
 
@@ -700,8 +713,7 @@ function importData(file){
     if(!proceed) return;
     store.data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
     saveData();
-    store.view = {screen:'home'};
-    render();
+    navigateTo({ screen:'home', bookId:null });
     alert('Import complete.');
   };
   reader.onerror = ()=> alert('Could not read that file.');
@@ -746,7 +758,7 @@ function bookCard(b){
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
     ${b.archived ? `<button class="btn btn-secondary btn-unarchive" style="width:100%; margin-top:10px;">Unarchive</button>` : ''}
   `;
-  el.addEventListener('click', ()=>{ store.view = {screen:'book', bookId:b.id}; render(); });
+  el.addEventListener('click', ()=> navigateTo({ screen:'book', bookId:b.id }));
   const unarchiveBtn = el.querySelector('.btn-unarchive');
   if(unarchiveBtn){
     unarchiveBtn.addEventListener('click', (e)=>{
@@ -919,7 +931,11 @@ function rewardsCard(total){
 function renderBook(bookId){
   const b = store.data.books.find(x=>x.id===bookId);
   const wrap = document.createElement('div');
-  if(!b){ store.view={screen:'home'}; return renderHome(); }
+  if(!b){
+    store.view = { screen:'home', bookId:null };
+    history.replaceState(historyStateFor(store.view), '');
+    return renderHome();
+  }
 
   const auto = bookAutoCompleted(b);
   const completed = bookIsCompleted(b);
@@ -972,7 +988,7 @@ function renderBook(bookId){
   const backBtn = document.createElement('button');
   backBtn.className='btn btn-secondary';
   backBtn.textContent='← Books';
-  backBtn.addEventListener('click', ()=>{ store.view={screen:'home'}; render(); });
+  backBtn.addEventListener('click', ()=> navigateTo({ screen:'home', bookId:null }));
   navRow.appendChild(backBtn);
 
   const editBtn = document.createElement('button');
@@ -1209,9 +1225,10 @@ async function init(){
     if(store.roster.length <= 1){
       selectPerson(store.roster[0].uid);
     } else {
-      store.view = { screen:'roster' };
+      store.view = { screen:'roster', bookId:null };
     }
   }
+  history.replaceState(historyStateFor(store.view), '');
   render();
 }
 init();
