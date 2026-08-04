@@ -1,0 +1,101 @@
+{
+  "books": [
+    {
+      "id": "b1",
+      "title": "The Hobbit",
+      "targetPages": 310,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-14", "page": 40 },
+        { "date": "2026-07-18", "page": 85 },
+        { "date": "2026-07-21", "page": 120 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784000000000
+    },
+    {
+      "id": "b2",
+      "title": "Dune",
+      "targetPages": 150,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-10", "page": 75 },
+        { "date": "2026-07-15", "page": 160 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784100000000
+    },
+    {
+      "id": "b3",
+      "title": "Pocket Poems",
+      "targetPages": 40,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-16", "page": 10 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784200000000
+    },
+    {
+      "id": "b4",
+      "title": "War and Peace",
+      "targetPages": 900,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-17", "page": 200 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784300000000
+    },
+    {
+      "id": "b5",
+      "title": "Untitled Galley",
+      "targetPages": null,
+      "multiplier": 1,
+      "entries": [],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784400000000
+    },
+    {
+      "id": "b6",
+      "title": "Mystery Novel",
+      "targetPages": null,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-19", "page": 45 }
+      ],
+      "completed": false,
+      "archived": false,
+      "updatedAt": 1784500000000
+    },
+    {
+      "id": "b7",
+      "title": "Borrowed Book",
+      "targetPages": null,
+      "multiplier": 1,
+      "entries": [],
+      "completed": true,
+      "archived": false,
+      "updatedAt": 1784600000000
+    },
+    {
+      "id": "b8",
+      "title": "Old Favorite",
+      "targetPages": 250,
+      "multiplier": 1,
+      "entries": [
+        { "date": "2026-07-01", "page": 250 }
+      ],
+      "completed": true,
+      "archived": true,
+      "updatedAt": 1783900000000
+    }
+  ],
+  "rewardLabels": {},
+  "rewardInterval": 100
+}
