@@ -56,10 +56,11 @@
       if (median) { total = median; estimatedTotal = true; }
     }
     if (!total) return [];
-    const tickCount = Math.floor(total / 100);
+    const effectiveTotal = total * bookMultiplier(book);
+    const tickCount = Math.floor(effectiveTotal / 100);
     const ticks = [];
     for (let n = 0; n < tickCount; n++) {
-      const fromBottom = heightPx * ((n + 1) * 100 / total);
+      const fromBottom = heightPx * ((n + 1) * 100 / effectiveTotal);
       ticks.push({
         topPx: Math.round(heightPx - fromBottom),
         muted: estimatedTotal || fromBottom <= fillPx
