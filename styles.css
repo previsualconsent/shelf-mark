@@ -135,9 +135,9 @@
     box-shadow:0 1px 3px rgba(0,0,0,0.35);
   }
   .spine-title{
-    position:absolute; bottom:10px; left:50%;
-    writing-mode:vertical-rl; text-orientation:mixed; transform:translateX(-50%) rotate(180deg);
-    max-height:calc(100% - 22px); overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+    position:absolute; top:50%; left:50%;
+    writing-mode:vertical-rl; text-orientation:mixed; transform:translate(-50%,-50%) rotate(180deg);
+    max-height:calc(100% - 12px); overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
     font-family:'Inter',sans-serif; font-size:10px; font-weight:600;
     color:rgba(35,44,38,0.85);
     text-shadow:0 0 2px rgba(255,255,255,0.9), 0 0 4px rgba(255,255,255,0.7);
