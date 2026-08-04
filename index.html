@@ -165,6 +165,7 @@ function loadCachedData(uid){
   try{
     const raw = localStorage.getItem('shelfmark-data-'+uid);
     if(!raw) return { books: [], rewardLabels: {}, rewardInterval: 100 };
+    store.hasSyncedOnce[uid] = true;
     const parsed = JSON.parse(raw);
     parsed.books = parsed.books || [];
     parsed.rewardLabels = normalizeRewardLabels(parsed.rewardLabels || {});
@@ -200,6 +201,7 @@ function attachListener(uid){
     if(!remote) return;
     const fresh = { books: remote.books || [], rewardLabels: normalizeRewardLabels(remote.rewardLabels || {}), rewardInterval: remote.rewardInterval || 100 };
     store.peopleCache[uid] = fresh;
+    store.hasSyncedOnce[uid] = true;
     try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
     if(uid === store.currentUid) store.data = fresh;
     render();
@@ -209,6 +211,9 @@ function personTotalPages(uid){
   const pd = store.peopleCache[uid];
   if(!pd) return 0;
   return (pd.books||[]).reduce((sum,b)=>sum+bookEffectivePages(b),0);
+}
+function hasReaderSynced(uid){
+  return !firebaseReady || isDevNoSync(uid) || !!store.hasSyncedOnce[uid];
 }
 function selectPerson(uid){
   store.currentUid = uid;
@@ -295,6 +300,7 @@ const store = {
   data: { books: [], rewardLabels: {}, rewardInterval: 100 },
   view: { screen:'home', bookId:null },
   syncError: null,
+  hasSyncedOnce: {},
 };
 function historyStateFor(view){
   return { screen: view.screen, bookId: view.bookId || null };
@@ -479,11 +485,12 @@ function renderRoster(){
     const el = document.createElement('div');
     el.className = 'card book-card';
     const total = personTotalPages(r.uid);
+    const synced = hasReaderSynced(r.uid);
     el.innerHTML = `
       <div class="book-row">
         <div>
           <div class="roster-name">${escapeHtml(r.name)}</div>
-          <div class="book-meta">${fmtNum(total)} pages read</div>
+          <div class="book-meta">${synced ? `${fmtNum(total)} pages read` : 'Syncing…'}</div>
         </div>
         <button class="icon-btn" data-share="${r.uid}" title="Share link" aria-label="Share link for ${escapeHtml(r.name)}">${shareIconSvg()}</button>
       </div>`;
@@ -560,6 +567,7 @@ function renderHome(){
   if(syncTag) wrap.appendChild(syncTag);
 
   const total = totalPagesRead(store.data.books);
+  const synced = hasReaderSynced(store.currentUid);
   const interval = rewardInterval();
   const nextMilestone = (Math.floor(total/interval)+1)*interval;
   const shelf = document.createElement('div');
@@ -589,8 +597,8 @@ function renderHome(){
   shelf.innerHTML = `
     <div class="shelf-total">
       <div>
-        <div class="num">${fmtNum(total)}</div>
-        <div class="label">Total pages read</div>
+        <div class="num">${synced ? fmtNum(total) : '—'}</div>
+        <div class="label">${synced ? 'Total pages read' : 'Syncing…'}</div>
       </div>
     </div>
     <div class="reward-strip">
