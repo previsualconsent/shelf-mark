@@ -22,6 +22,7 @@ Shelfmark is a single-page reading tracker PWA. There is no build system, packag
 - To run `node dev-server.js [port]` for a test: start it with the Bash tool's `run_in_background: true` option (not a shell-level `&`), and stop it afterward with `TaskStop` on the returned task ID. `&` orphans the process outside task tracking, so it can't be found or stopped cleanly later.
 - To confirm the dev server actually started, don't `curl` it — `dev-server.js` prints `Shelfmark dev server: http://localhost:<port> ...` to stdout as soon as it's listening, so just `Read` the task's output file (the path returned when you started the background task) and look for that line. This needs no extra permission grant, unlike `curl`.
 - When driving the app with Playwright for testing, always navigate to a `?dev=<fixture>` URL rather than the bare app root. The bare root hits the roster's first-run `prompt()` dialog ("Whose reading shelf is this?"), which Playwright can't reliably answer (dialogs can auto-dismiss before `browser_handle_dialog` runs) and which doesn't reflect real fixture data anyway.
+- When taking Playwright screenshots (`browser_take_screenshot`), pass `filename` as `.playwright-mcp/<name>.png` rather than a bare filename — a bare filename resolves relative to the repo root and leaves stray untracked PNGs behind. `.playwright-mcp/` is already gitignored, so screenshots saved there need no manual cleanup.
 
 ## Architecture
 
