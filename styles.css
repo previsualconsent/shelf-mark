@@ -175,9 +175,10 @@
   .book-page{ font-family:'Fraunces', serif; font-weight:700; font-size:20px; color:var(--cover); white-space:nowrap;}
   .progress-track{ height:6px; background:var(--rule); border-radius:4px; margin-top:10px; overflow:hidden;}
   .progress-fill{ height:100%; background:var(--gold); border-radius:4px; }
-  .archive-toggle{
-    background:none; border:none; cursor:pointer; font-family:'Inter',sans-serif; font-size:11px;
-    color:var(--gold); text-decoration:underline; padding:0;
+  .archived-pill{
+    display:inline-flex; align-items:center; gap:4px; border:none; border-radius:999px; cursor:pointer;
+    background:var(--page-warm); color:var(--ink-soft); font-family:'Inter',sans-serif; font-size:11px;
+    padding:5px 10px; flex:none; white-space:nowrap;
   }
 
   .empty{

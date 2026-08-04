@@ -414,6 +414,7 @@ function render(){
   app.innerHTML = '';
   if(store.view.screen==='roster') app.appendChild(renderRoster());
   else if(store.view.screen==='home') app.appendChild(renderHome());
+  else if(store.view.screen==='settings') app.appendChild(renderSettings());
   else if(store.view.screen==='book') app.appendChild(renderBook(store.view.bookId));
   document.getElementById('fab').style.display = store.view.screen==='home' ? 'flex' : 'none';
 }
@@ -527,8 +528,14 @@ function renderHome(){
 
   const header = document.createElement('header');
   header.className = 'top';
-  header.innerHTML = `<h1>Shelfmark</h1><span class="tag">Reading Tracker</span>`;
+  header.innerHTML = `
+    <div><h1>Shelfmark</h1><span class="tag">Reading Tracker</span></div>
+    <button class="icon-btn" id="btn-open-settings" title="Settings" aria-label="Settings">${gearIconSvg()}</button>
+  `;
   wrap.appendChild(header);
+  header.querySelector('#btn-open-settings').addEventListener('click', ()=>{
+    store.view = { screen:'settings' }; render();
+  });
 
   const syncTag = syncErrorBanner();
   if(syncTag) wrap.appendChild(syncTag);
@@ -580,10 +587,10 @@ function renderHome(){
   booksHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; margin:22px 4px 8px;';
   booksHeader.innerHTML = `
     <div class="section-title" style="margin:0;">Your books</div>
-    ${archivedCount ? `<button class="archive-toggle">${showArchived?'Hide':'Show'} archived (${archivedCount})</button>` : ''}
+    ${archivedCount ? `<button class="archived-pill">${showArchived?'Hide archived ‹':`${archivedCount} archived ›`}</button>` : ''}
   `;
   wrap.appendChild(booksHeader);
-  const toggleBtn = booksHeader.querySelector('.archive-toggle');
+  const toggleBtn = booksHeader.querySelector('.archived-pill');
   if(toggleBtn){
     toggleBtn.addEventListener('click', ()=>{ showArchived = !showArchived; render(); });
   }
@@ -606,6 +613,18 @@ function renderHome(){
   }
 
   wrap.appendChild(rewardsCard(total));
+
+  return wrap;
+}
+
+function renderSettings(){
+  const wrap = document.createElement('div');
+
+  const back = document.createElement('button');
+  back.className = 'back-link';
+  back.textContent = '← Home';
+  back.addEventListener('click', ()=>{ store.view = { screen:'home' }; render(); });
+  wrap.appendChild(back);
 
   wrap.appendChild(sectionTitle('Options'));
   wrap.appendChild(optionsCard());
@@ -710,6 +729,10 @@ function importData(file){
 
 function shareIconSvg(){
   return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>`;
+}
+
+function gearIconSvg(){
+  return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
 }
 
 function colorForBook(id){
