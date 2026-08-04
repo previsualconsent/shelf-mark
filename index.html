@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.22.2';
+const APP_VERSION = '2.23.0';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -73,6 +73,7 @@ const VERSION_HISTORY = [
   { v:'2.22.0', notes:'Redesigned shelf spines: width now encodes page count (books with an unknown target get an estimated width, dashed border, and muted ticks), and a bottom-up fill encodes reading progress; titles are always shown as vertical text instead of appearing only on tap.' },
   { v:'2.22.1', notes:'Spine titles are now vertically centered instead of anchored to the bottom.' },
   { v:'2.22.2', notes:'Spine tick marks now scale with a book\'s page multiplier, so a 2x/3x multiplier book shows twice/triple as many ticks.' },
+  { v:'2.23.0', notes:'Moved Options into a dedicated Settings screen (behind a gear icon) and replaced the "Show archived" text link with a pill badge. Book detail\'s actions are now Log progress + Edit details up front, with Mark as finished/unfinished, Archive, and Delete consolidated behind a "More" menu.' },
 ];
 
 /* ---------- firebase ---------- */
