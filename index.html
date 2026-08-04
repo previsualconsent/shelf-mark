@@ -140,9 +140,9 @@ function showShareLink(uid){
   const link = shareLinkFor(uid);
   const message = 'Send this link to the other device to add "'+rosterNameFor(uid)+'" there:\n\n'+link;
   if(navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(link).then(()=> alert('Link copied!\n\n'+message)).catch(()=> prompt(message, link));
+    navigator.clipboard.writeText(link).then(()=> alertSheet('Link copied!\n\n'+message)).catch(()=> promptSheet(message, link, ()=>{}));
   } else {
-    prompt(message, link);
+    promptSheet(message, link, ()=>{});
   }
 }
 
@@ -232,13 +232,19 @@ async function createReader(name){
   }
   return newUid;
 }
-async function ensureInitialReader(){
-  if(store.roster.length > 0) return;
-  let name = '';
-  while(!name){
-    name = (prompt('Welcome to Shelfmark! Whose reading shelf is this?') || '').trim();
-  }
-  await createReader(name);
+function ensureInitialReader(){
+  if(store.roster.length > 0) return Promise.resolve();
+  return new Promise((resolve)=>{
+    const ask = ()=>{
+      promptSheet('Welcome to Shelfmark! Whose reading shelf is this?', '', async (name)=>{
+        const trimmed = (name||'').trim();
+        if(!trimmed){ ask(); return; }
+        await createReader(trimmed);
+        resolve();
+      }, { cancelable:false });
+    };
+    ask();
+  });
 }
 
 /* Dev-only data loading: open with ?dev=<fixture> (e.g. ?dev=huge-total) to
@@ -712,18 +718,18 @@ function importData(file){
   reader.onload = ()=>{
     let parsed;
     try{ parsed = JSON.parse(reader.result); }
-    catch(e){ alert('That file isn\'t valid Shelfmark data (couldn\'t read it as JSON).'); return; }
+    catch(e){ alertSheet('That file isn\'t valid Shelfmark data (couldn\'t read it as JSON).'); return; }
     if(!parsed || !Array.isArray(parsed.books) || !parsed.books.every(isValidBook) || (parsed.rewardLabels != null && !isValidRewardLabels(parsed.rewardLabels))){
-      alert('That file isn\'t valid Shelfmark data.'); return;
+      alertSheet('That file isn\'t valid Shelfmark data.'); return;
     }
-    const proceed = confirm('Import will replace all current books, history, and rewards with the contents of this file. Continue?');
-    if(!proceed) return;
-    store.data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
-    saveData();
-    navigateTo({ screen:'home', bookId:null });
-    alert('Import complete.');
+    confirmSheet('Import will replace all current books, history, and rewards with the contents of this file. Continue?', ()=>{
+      store.data = { books: parsed.books, rewardLabels: normalizeRewardLabels(isValidRewardLabels(parsed.rewardLabels) ? parsed.rewardLabels : {}), rewardInterval: parsed.rewardInterval || 100 };
+      saveData();
+      navigateTo({ screen:'home', bookId:null });
+      alertSheet('Import complete.');
+    });
   };
-  reader.onerror = ()=> alert('Could not read that file.');
+  reader.onerror = ()=> alertSheet('Could not read that file.');
   reader.readAsText(file);
 }
 
@@ -1203,12 +1209,12 @@ function openBookEditSheet(bookId){
       saveData(); closeSheet(); render();
     });
     root.querySelector('#f-delete').addEventListener('click', ()=>{
-      if(confirm('Delete "'+b.title+'" and all its history?')){
+      confirmSheet('Delete "'+b.title+'" and all its history?', ()=>{
         store.data.books = store.data.books.filter(x=>x.id!==bookId);
         saveData();
         hideSheetUI();
         navigateTo({ screen:'home', bookId:null });
-      }
+      });
     });
   });
 }
