@@ -416,16 +416,6 @@ function render(){
   else if(store.view.screen==='home') app.appendChild(renderHome());
   else if(store.view.screen==='book') app.appendChild(renderBook(store.view.bookId));
   document.getElementById('fab').style.display = store.view.screen==='home' ? 'flex' : 'none';
-  sizeSpineTitles();
-}
-
-/* Spine title labels only fit on wide-enough book spines; since spine width
-   depends on flex-shrink layout (fixed width until the shelf is full, then
-   shrinking to fit), it can only be measured after the shelf is in the DOM. */
-function sizeSpineTitles(){
-  document.querySelectorAll('.spine').forEach(spine=>{
-    spine.classList.toggle('spine-has-title', spine.offsetWidth >= 28);
-  });
 }
 
 function syncErrorBanner(){
@@ -549,14 +539,20 @@ function renderHome(){
   const shelf = document.createElement('div');
   shelf.className = 'shelf';
 
-  const shelfBooks = store.data.books.filter(b=>!b.archived);
+  const SPINE_HEIGHT = 120;
+  const shelfBooks = store.data.books.filter(b=>!b.archived).sort((a,b)=>(a.updatedAt||0)-(b.updatedAt||0));
   const spinesHtml = shelfBooks.length ? shelfBooks.map(b=>{
-    const pages = bookEffectivePages(b);
-    const maxPages = Math.max(...shelfBooks.map(bookEffectivePages), 1);
-    const h = Math.max(20, Math.round((pages/maxPages)*118));
-    const hue = colorForBook(b.id);
+    const color = colorForBook(b.id);
+    const { widthPx, estimated } = computeSpineWidth(b, shelfBooks);
+    const { fillPx, mode } = computeSpineFill(b, SPINE_HEIGHT);
+    const ticks = computeSpineTicks(b, shelfBooks, SPINE_HEIGHT, fillPx);
     const completed = bookIsCompleted(b);
-    return `<div class="spine" data-book-id="${b.id}" data-spine-label="${escapeHtml(b.title)}${completed?' (completed)':''}" style="height:${h}px; background:${hue};" title="${escapeHtml(b.title)}${completed?' (completed)':''}">
+    const unreadBg = `color-mix(in srgb, ${color} 22%, var(--page) 78%)`;
+    const ticksHtml = ticks.map(t=>`<div class="spine-tick${t.muted?' spine-tick-muted':''}" style="top:${t.topPx}px;"></div>`).join('');
+    const fillHtml = mode==='empty' ? '' : `<div class="spine-fill${mode!=='proportional'?' spine-fill-muted':''}" style="height:${fillPx}px; background:${color};"></div>`;
+    return `<div class="spine${estimated?' spine-estimated':''}" data-book-id="${b.id}" style="width:${Math.round(widthPx)}px; height:${SPINE_HEIGHT}px; background:${unreadBg};" title="${escapeHtml(b.title)}${completed?' (completed)':''}">
+      <div class="spine-ticks">${ticksHtml}</div>
+      ${fillHtml}
       ${completed ? '<div class="spine-check">✓</div>' : ''}
       <div class="spine-title">${escapeHtml(b.title)}</div>
     </div>`;
@@ -578,20 +574,6 @@ function renderHome(){
     <div class="spines">${spinesHtml}</div>
   `;
   wrap.appendChild(shelf);
-
-  shelf.querySelectorAll('.spine[data-book-id]').forEach(spine=>{
-    spine.addEventListener('click', (e)=>{
-      e.stopPropagation();
-      const existing = spine.querySelector('.spine-label');
-      shelf.querySelectorAll('.spine-label').forEach(l=>l.remove());
-      if(existing) return;
-      const label = document.createElement('div');
-      label.className = 'spine-label';
-      label.textContent = spine.getAttribute('data-spine-label');
-      spine.appendChild(label);
-      setTimeout(()=>label.remove(), 2500);
-    });
-  });
 
   const archivedCount = store.data.books.filter(b=>b.archived).length;
   const booksHeader = document.createElement('div');
