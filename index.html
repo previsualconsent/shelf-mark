@@ -966,6 +966,12 @@ function renderBook(bookId){
   const auto = bookAutoCompleted(b);
   const completed = bookIsCompleted(b);
 
+  const back = document.createElement('button');
+  back.className = 'back-link';
+  back.textContent = '← Books';
+  back.addEventListener('click', ()=>{ store.view={screen:'home'}; render(); });
+  wrap.appendChild(back);
+
   const header = document.createElement('header');
   header.className='top';
   header.innerHTML = `<h1 style="font-size:22px;">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}</h1>${b.archived?'<span class="tag-pill">Archived</span>':''}`;
@@ -1007,39 +1013,27 @@ function renderBook(bookId){
   addBtn.addEventListener('click', ()=> openEntrySheet(b.id));
   wrap.appendChild(addBtn);
 
-  const navRow = document.createElement('div');
-  navRow.className='btn-row';
-  navRow.style.marginBottom='14px';
-
-  const backBtn = document.createElement('button');
-  backBtn.className='btn btn-secondary';
-  backBtn.textContent='← Books';
-  backBtn.addEventListener('click', ()=>{ store.view={screen:'home'}; render(); });
-  navRow.appendChild(backBtn);
+  const actionRow = document.createElement('div');
+  actionRow.className='btn-row';
+  actionRow.style.marginBottom='14px';
 
   const editBtn = document.createElement('button');
   editBtn.className='btn btn-secondary';
   editBtn.textContent='Edit details';
   editBtn.addEventListener('click', ()=> openBookEditSheet(b.id));
-  navRow.appendChild(editBtn);
+  actionRow.appendChild(editBtn);
 
-  wrap.appendChild(navRow);
+  const moreBtn = document.createElement('button');
+  moreBtn.className='btn btn-secondary';
+  moreBtn.style.flex='none';
+  moreBtn.style.padding='0 18px';
+  moreBtn.textContent='⋯';
+  moreBtn.title = 'More actions';
+  moreBtn.setAttribute('aria-label', 'More actions');
+  moreBtn.addEventListener('click', ()=> openBookMoreSheet(b.id));
+  actionRow.appendChild(moreBtn);
 
-  if(!auto){
-    const statusRow = document.createElement('div');
-    statusRow.className='btn-row';
-    statusRow.style.marginBottom='14px';
-    const finishBtn = document.createElement('button');
-    finishBtn.className='btn btn-secondary';
-    finishBtn.style.width='100%';
-    finishBtn.textContent = b.completed ? 'Mark as unfinished' : 'Mark as finished';
-    finishBtn.addEventListener('click', ()=>{
-      b.completed = !b.completed; b.updatedAt = Date.now();
-      saveData(); render();
-    });
-    statusRow.appendChild(finishBtn);
-    wrap.appendChild(statusRow);
-  }
+  wrap.appendChild(actionRow);
 
   wrap.appendChild(sectionTitle('History'));
   const histCard = document.createElement('div');
@@ -1062,16 +1056,6 @@ function renderBook(bookId){
       saveData(); render();
     });
   });
-
-  const archiveBtn = document.createElement('button');
-  archiveBtn.className='btn btn-danger';
-  archiveBtn.style.cssText='margin-top:20px; width:100%; text-align:center;';
-  archiveBtn.textContent = b.archived ? 'Unarchive this book' : 'Archive this book';
-  archiveBtn.addEventListener('click', ()=>{
-    b.archived = !b.archived; b.updatedAt = Date.now();
-    saveData(); render();
-  });
-  wrap.appendChild(archiveBtn);
 
   return wrap;
 }
@@ -1153,7 +1137,6 @@ function openBookEditSheet(bookId){
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Save</button>
     </div>
-    <button class="btn btn-danger" id="f-delete" style="margin-top:16px; width:100%; text-align:center;">Delete this book</button>
   `, (root)=>{
     wireMoreOptionsToggle(root);
     root.querySelector('#f-cancel').addEventListener('click', closeSheet);
@@ -1165,12 +1148,43 @@ function openBookEditSheet(bookId){
       b.title = title; b.targetPages = isNaN(target)?null:target; b.multiplier = (isNaN(mult)||mult<1)?1:mult; b.updatedAt = Date.now();
       saveData(); closeSheet(); render();
     });
+  });
+}
+
+/* Consolidates the book's status-changing and destructive actions (finish
+   toggle, archive toggle, delete) behind a single "More" entry point so the
+   book detail screen's primary surface only shows Log progress + Edit. */
+function openBookMoreSheet(bookId){
+  const b = store.data.books.find(x=>x.id===bookId);
+  if(!b) return;
+  const auto = bookAutoCompleted(b);
+  openSheet(`
+    <h2>More — ${escapeHtml(b.title)}</h2>
+    <div class="sheet-menu">
+      ${!auto ? `<button class="btn btn-secondary" id="f-toggle-finished">${b.completed ? 'Mark as unfinished' : 'Mark as finished'}</button>` : ''}
+      <button class="btn btn-secondary" id="f-toggle-archived">${b.archived ? 'Unarchive this book' : 'Archive this book'}</button>
+      <button class="btn btn-danger" id="f-delete">Delete this book</button>
+    </div>
+    <button class="btn btn-secondary" id="f-close" style="width:100%; margin-top:16px;">Close</button>
+  `, (root)=>{
+    const finishBtn = root.querySelector('#f-toggle-finished');
+    if(finishBtn){
+      finishBtn.addEventListener('click', ()=>{
+        b.completed = !b.completed; b.updatedAt = Date.now();
+        saveData(); closeSheet(); render();
+      });
+    }
+    root.querySelector('#f-toggle-archived').addEventListener('click', ()=>{
+      b.archived = !b.archived; b.updatedAt = Date.now();
+      saveData(); closeSheet(); render();
+    });
     root.querySelector('#f-delete').addEventListener('click', ()=>{
       if(confirm('Delete "'+b.title+'" and all its history?')){
         store.data.books = store.data.books.filter(x=>x.id!==bookId);
         saveData(); closeSheet(); store.view={screen:'home'}; render();
       }
     });
+    root.querySelector('#f-close').addEventListener('click', closeSheet);
   });
 }
 
