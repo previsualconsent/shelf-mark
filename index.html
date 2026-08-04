@@ -300,6 +300,13 @@ function navigateTo(view){
 }
 window.addEventListener('popstate', (e)=>{
   const state = e.state || { screen: store.roster.length > 1 ? 'roster' : 'home', bookId: null };
+  if(state.sheet){
+    // Landed on a sheet's history marker that's no longer showing
+    // (its sheet was already dismissed via hideSheetUI) — skip past it.
+    history.back();
+    return;
+  }
+  hideSheetUI();
   store.view = { screen: state.screen, bookId: state.bookId || null };
   render();
 });
@@ -519,7 +526,7 @@ function openAddReaderSheet(){
       const name = root.querySelector('#f-name').value.trim();
       if(!name) return;
       const newUid = await createReader(name);
-      closeSheet();
+      hideSheetUI();
       navigateTo({ screen:'roster', bookId:null });
       showShareLink(newUid);
     });
@@ -1060,9 +1067,17 @@ const sheetContent = document.getElementById('sheetContent');
 function openSheet(html, onMount){
   sheetContent.innerHTML = html;
   backdrop.classList.add('open');
+  history.pushState({ ...historyStateFor(store.view), sheet:true }, '');
   if(onMount) onMount(sheetContent);
 }
-function closeSheet(){ backdrop.classList.remove('open'); sheetContent.innerHTML=''; }
+/* Hides the sheet without touching history — use this when the caller is
+   about to navigate or open another sheet right after, to avoid racing
+   with closeSheet()'s history.back(). */
+function hideSheetUI(){ backdrop.classList.remove('open'); sheetContent.innerHTML=''; }
+function closeSheet(){
+  hideSheetUI();
+  if(history.state && history.state.sheet) history.back();
+}
 backdrop.addEventListener('click', (e)=>{ if(e.target===backdrop) closeSheet(); });
 
 document.getElementById('fab').addEventListener('click', openAddBookSheet);
@@ -1142,7 +1157,9 @@ function openBookEditSheet(bookId){
     root.querySelector('#f-delete').addEventListener('click', ()=>{
       if(confirm('Delete "'+b.title+'" and all its history?')){
         store.data.books = store.data.books.filter(x=>x.id!==bookId);
-        saveData(); closeSheet(); store.view={screen:'home'}; render();
+        saveData();
+        hideSheetUI();
+        navigateTo({ screen:'home', bookId:null });
       }
     });
   });
@@ -1202,7 +1219,7 @@ function openEntrySheet(bookId){
       b.entries = b.entries.filter(e=>e.date!==date);
       b.entries.push({date, page});
       b.updatedAt = Date.now();
-      saveData(); closeSheet(); render();
+      saveData(); hideSheetUI(); render();
       const afterTotal = totalPagesRead(store.data.books);
       const crossedMilestone = newlyCrossedMilestone(beforeTotal, afterTotal);
       if(crossedMilestone) openMilestoneCelebration(crossedMilestone);
