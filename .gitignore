@@ -1,3 +1,4 @@
 .env
 .superpowers/
 .playwright-mcp
+.worktrees/
