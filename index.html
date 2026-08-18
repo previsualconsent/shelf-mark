@@ -216,7 +216,7 @@ async function saveData(){
 }
 function attachListener(uid){
   if(!firebaseReady || store.listeners[uid] || isDevNoSync(uid)) return;
-  const timeoutId = setTimeout(()=>{
+  store.syncTimeouts[uid] = setTimeout(()=>{
     if(!store.hasSyncedOnce[uid]){
       store.syncTimedOut[uid] = true;
       render();
@@ -226,7 +226,7 @@ function attachListener(uid){
     if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
     const remote = snap.data();
     if(!remote) return;
-    clearTimeout(timeoutId);
+    clearTimeout(store.syncTimeouts[uid]);
     const fresh = { books: remote.books || [], rewardLabels: normalizeRewardLabels(remote.rewardLabels || {}), rewardInterval: remote.rewardInterval || 100 };
     store.peopleCache[uid] = fresh;
     store.hasSyncedOnce[uid] = true;
@@ -236,12 +236,14 @@ function attachListener(uid){
     render();
   }, err=>{
     console.error('Snapshot error for', uid, err);
-    clearTimeout(timeoutId);
+    clearTimeout(store.syncTimeouts[uid]);
     store.syncTimedOut[uid] = true;
     render();
   });
 }
 function detachListener(uid){
+  clearTimeout(store.syncTimeouts[uid]);
+  delete store.syncTimeouts[uid];
   if(store.listeners[uid]){
     store.listeners[uid]();
     delete store.listeners[uid];
@@ -371,6 +373,7 @@ const store = {
   hasSyncedOnce: {},
   syncFailed: {},
   syncTimedOut: {},
+  syncTimeouts: {},
 };
 const SYNC_TIMEOUT_MS = 15000;
 function historyStateFor(view){
@@ -572,7 +575,7 @@ function renderRoster(){
     const total = personTotalPages(r.uid);
     const synced = hasReaderSynced(r.uid);
     const failed = hasReaderSyncFailed(r.uid);
-    const metaText = synced ? `${fmtNum(total)} pages read` : (failed ? '<span class="sync-retry" data-retry-sync>Sync failed — tap to retry</span>' : 'Syncing…');
+    const metaText = synced ? `${fmtNum(total)} pages read` : (failed ? '<button type="button" class="sync-retry" data-retry-sync>Sync failed — tap to retry</button>' : 'Syncing…');
     el.innerHTML = `
       <div class="book-row">
         <div>
@@ -691,7 +694,7 @@ function renderHome(){
 
   const toNext = interval - (total%interval);
   const progressPct = Math.round(((interval-toNext)/interval)*100);
-  const totalLabel = synced ? 'Total pages read' : (syncFailedForCurrent ? '<span class="sync-retry" data-retry-sync>Sync failed — tap to retry</span>' : 'Syncing…');
+  const totalLabel = synced ? 'Total pages read' : (syncFailedForCurrent ? '<button type="button" class="sync-retry" data-retry-sync>Sync failed — tap to retry</button>' : 'Syncing…');
   const rewardStripHtml = synced ? `
     <div class="reward-strip">
       <div class="reward-strip-track"><div class="reward-strip-fill" style="width:${progressPct}%"></div></div>
