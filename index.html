@@ -216,17 +216,38 @@ async function saveData(){
 }
 function attachListener(uid){
   if(!firebaseReady || store.listeners[uid] || isDevNoSync(uid)) return;
+  store.syncTimeouts[uid] = setTimeout(()=>{
+    if(!store.hasSyncedOnce[uid]){
+      store.syncTimedOut[uid] = true;
+      render();
+    }
+  }, SYNC_TIMEOUT_MS);
   store.listeners[uid] = personDocRef(uid).onSnapshot(snap=>{
     if(snap.metadata.hasPendingWrites) return; // echo of our own optimistic write
     const remote = snap.data();
     if(!remote) return;
+    clearTimeout(store.syncTimeouts[uid]);
     const fresh = { books: remote.books || [], rewardLabels: normalizeRewardLabels(remote.rewardLabels || {}), rewardInterval: remote.rewardInterval || 100 };
     store.peopleCache[uid] = fresh;
     store.hasSyncedOnce[uid] = true;
+    store.syncTimedOut[uid] = false;
     try{ localStorage.setItem('shelfmark-data-'+uid, JSON.stringify(fresh)); }catch(e){}
     if(uid === store.currentUid) store.data = fresh;
     render();
-  }, err=> console.error('Snapshot error for', uid, err));
+  }, err=>{
+    console.error('Snapshot error for', uid, err);
+    clearTimeout(store.syncTimeouts[uid]);
+    store.syncTimedOut[uid] = true;
+    render();
+  });
+}
+function detachListener(uid){
+  clearTimeout(store.syncTimeouts[uid]);
+  delete store.syncTimeouts[uid];
+  if(store.listeners[uid]){
+    store.listeners[uid]();
+    delete store.listeners[uid];
+  }
 }
 function personTotalPages(uid){
   const pd = store.peopleCache[uid];
@@ -235,6 +256,9 @@ function personTotalPages(uid){
 }
 function hasReaderSynced(uid){
   return !firebaseReady || isDevNoSync(uid) || !!store.hasSyncedOnce[uid];
+}
+function hasReaderSyncFailed(uid){
+  return !!store.syncFailed[uid] || !!store.syncTimedOut[uid];
 }
 function selectPerson(uid){
   store.currentUid = uid;
@@ -254,9 +278,34 @@ async function createReader(name){
     }catch(e){
       console.error('Create reader failed:', e);
       store.syncError = 'Sync failed — new reader saved on this device only.';
+      store.syncFailed[newUid] = true;
+      render();
     }
   }
   return newUid;
+}
+async function retryCreateReader(uid){
+  if(!firebaseReady) return;
+  const data = store.peopleCache[uid] || { books: [], rewardLabels: {}, rewardInterval: 100 };
+  try{
+    await personDocRef(uid).set({ name: rosterNameFor(uid), books: data.books, rewardLabels: data.rewardLabels, rewardInterval: data.rewardInterval || 100, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    store.syncFailed[uid] = false;
+    if(store.syncError){ store.syncError = null; }
+  }catch(e){
+    console.error('Retry create reader failed:', e);
+    store.syncError = 'Sync failed — new reader saved on this device only.';
+  }
+  render();
+}
+function retryListen(uid){
+  detachListener(uid);
+  store.syncTimedOut[uid] = false;
+  attachListener(uid);
+  render();
+}
+function retrySync(uid){
+  if(store.syncFailed[uid]) retryCreateReader(uid);
+  else if(store.syncTimedOut[uid]) retryListen(uid);
 }
 function ensureInitialReader(){
   if(store.roster.length > 0) return Promise.resolve();
@@ -322,7 +371,11 @@ const store = {
   view: { screen:'home', bookId:null },
   syncError: null,
   hasSyncedOnce: {},
+  syncFailed: {},
+  syncTimedOut: {},
+  syncTimeouts: {},
 };
+const SYNC_TIMEOUT_MS = 15000;
 function historyStateFor(view){
   return { screen: view.screen, bookId: view.bookId || null };
 }
@@ -521,22 +574,29 @@ function renderRoster(){
     el.className = 'card book-card';
     const total = personTotalPages(r.uid);
     const synced = hasReaderSynced(r.uid);
+    const failed = hasReaderSyncFailed(r.uid);
+    const metaText = synced ? `${fmtNum(total)} pages read` : (failed ? '<button type="button" class="sync-retry" data-retry-sync>Sync failed — tap to retry</button>' : 'Syncing…');
     el.innerHTML = `
       <div class="book-row">
         <div>
           <div class="roster-name">${escapeHtml(r.name)}</div>
-          <div class="book-meta">${synced ? `${fmtNum(total)} pages read` : 'Syncing…'}</div>
+          <div class="book-meta">${metaText}</div>
         </div>
         <button class="icon-btn" data-share="${r.uid}" title="Share link" aria-label="Share link for ${escapeHtml(r.name)}">${shareIconSvg()}</button>
       </div>`;
     el.addEventListener('click', (e)=>{
-      if(e.target.closest('[data-share]')) return;
+      if(e.target.closest('[data-share]') || e.target.closest('[data-retry-sync]')) return;
       selectPerson(r.uid);
       navigateTo(store.view);
     });
     el.querySelector('[data-share]').addEventListener('click', (e)=>{
       e.stopPropagation();
       showShareLink(r.uid);
+    });
+    const retryEl = el.querySelector('[data-retry-sync]');
+    if(retryEl) retryEl.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      retrySync(r.uid);
     });
     wrap.appendChild(el);
   });
@@ -607,6 +667,7 @@ function renderHome(){
 
   const total = totalPagesRead(store.data.books);
   const synced = hasReaderSynced(store.currentUid);
+  const syncFailedForCurrent = hasReaderSyncFailed(store.currentUid);
   const interval = rewardInterval();
   const nextMilestone = (Math.floor(total/interval)+1)*interval;
   const shelf = document.createElement('div');
@@ -633,19 +694,29 @@ function renderHome(){
 
   const toNext = interval - (total%interval);
   const progressPct = Math.round(((interval-toNext)/interval)*100);
-  shelf.innerHTML = `
-    <div class="shelf-total">
-      <div>
-        <div class="num">${synced ? fmtNum(total) : '—'}</div>
-        <div class="label">${synced ? 'Total pages read' : 'Syncing…'}</div>
-      </div>
-    </div>
+  const totalLabel = synced ? 'Total pages read' : (syncFailedForCurrent ? '<button type="button" class="sync-retry" data-retry-sync>Sync failed — tap to retry</button>' : 'Syncing…');
+  const rewardStripHtml = synced ? `
     <div class="reward-strip">
       <div class="reward-strip-track"><div class="reward-strip-fill" style="width:${progressPct}%"></div></div>
       <div class="reward-strip-text"><strong>${fmtNum(toNext)} pages</strong> to next reward (${fmtNum(nextMilestone)})</div>
     </div>
+  ` : `
+    <div class="reward-strip">
+      <div class="reward-strip-text reward-strip-muted">Reward progress will appear once syncing finishes.</div>
+    </div>
+  `;
+  shelf.innerHTML = `
+    <div class="shelf-total">
+      <div>
+        <div class="num">${synced ? fmtNum(total) : '—'}</div>
+        <div class="label">${totalLabel}</div>
+      </div>
+    </div>
+    ${rewardStripHtml}
     <div class="spines">${spinesHtml}</div>
   `;
+  const homeRetryEl = shelf.querySelector('[data-retry-sync]');
+  if(homeRetryEl) homeRetryEl.addEventListener('click', ()=> retrySync(store.currentUid));
   wrap.appendChild(shelf);
 
   const archivedCount = store.data.books.filter(b=>b.archived).length;
