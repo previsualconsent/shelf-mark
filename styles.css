@@ -90,6 +90,8 @@
     font-family:'Inter', sans-serif; font-size:13px; color:var(--ink-soft);
   }
   .reward-strip-text strong{ color:var(--ink); font-weight:600; }
+  .reward-strip-muted{ font-style:italic; opacity:0.75; }
+  .sync-retry{ cursor:pointer; text-decoration:underline; }
   .spines{
     display:flex; align-items:flex-end; gap:4px; height:120px; padding:0 2px 6px;
     border-bottom:2px solid var(--ink); margin:20px 0 2px;
