@@ -32,7 +32,7 @@
 /* ---------- version ---------- */
 /* Bump this (and add a line to VERSION_HISTORY) whenever a feature changes.
    Shown as a small footer tag in the header so old copies can be told apart. */
-const APP_VERSION = '2.25.0';
+const APP_VERSION = '2.26.0';
 const VERSION_HISTORY = [
   { v:'1.0.0', notes:'Initial tracker: books, page logging, milestone rewards, JSON export/import.' },
   { v:'1.1.0', notes:'Book detail view restyled: accent "Log progress" button, back/edit split into a nav row.' },
@@ -76,6 +76,7 @@ const VERSION_HISTORY = [
   { v:'2.23.0', notes:'Moved Options into a dedicated Settings screen (behind a gear icon) and replaced the "Show archived" text link with a pill badge. Book detail\'s actions are now Log progress + Edit details up front, with Mark as finished/unfinished, Archive, and Delete consolidated behind a "More" menu.' },
   { v:'2.24.0', notes:'Screen transitions and sheets now integrate with browser/device history, so the back button steps back through them instead of exiting the app. Replaced native alert/confirm/prompt dialogs with themed in-app sheets. Roster rows now show "Syncing…" instead of a stale page count while a reader\'s data is still loading from Firestore.' },
   { v:'2.25.0', notes:'A reader stuck on "Syncing…" (failed write or a stall of 15+ seconds) now shows a "Sync failed — tap to retry" control instead of hanging indefinitely. The reward-strip below the shelf total no longer shows contradictory 0%-progress numbers while a reader is still syncing.' },
+  { v:'2.26.0', notes:'Page multiplier now accepts any value greater than 0, not just 1 or above — e.g. 0.5× so 2 pages read counts as 1.' },
 ];
 
 /* ---------- firebase ---------- */
@@ -896,11 +897,11 @@ function bookCard(b){
     <div class="book-row">
       <div>
         <div class="book-title">${completed?'<span class="completed-check" title="Completed">✓</span> ':''}${escapeHtml(b.title)}${b.archived?' <span class="tag-pill">Archived</span>':''}</div>
-        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${fmtNum(target)}p`:''}${mult>1?` · ${mult}× bonus`:''}</div>
+        <div class="book-meta">${b.entries.length} ${b.entries.length===1?'entry':'entries'}${target?` · goal ${fmtNum(target)}p`:''}${mult!==1?` · ${mult}× bonus`:''}</div>
       </div>
       <div style="text-align:right;">
         <div class="book-page">${fmtNum(pages)}p</div>
-        ${mult>1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${fmtNum(effective)}p counted</div>`:''}
+        ${mult!==1?`<div style="font-family:'Inter',sans-serif; font-size:11px; color:var(--gold);">= ${fmtNum(effective)}p counted</div>`:''}
       </div>
     </div>
     ${target ? `<div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>` : ''}
@@ -1119,8 +1120,8 @@ function renderBook(bookId){
         <div class="num">${fmtNum(pages)}</div>
         <div class="label">Pages read${target?` of ${fmtNum(target)}`:''}</div>
       </div>
-      ${(mult>1 || velocityText) ? `<div class="next">
-        ${mult>1 ? `${mult}× bonus = ${fmtNum(effective)}p counted<br>` : ''}
+      ${(mult!==1 || velocityText) ? `<div class="next">
+        ${mult!==1 ? `${mult}× bonus = ${fmtNum(effective)}p counted<br>` : ''}
         ${velocityText}
       </div>` : ''}
     </div>
@@ -1263,8 +1264,8 @@ function moreOptionsHtml(multValue, startOpen){
     <button type="button" class="more-options-toggle" id="f-more-toggle">More options ${startOpen?'▲':'▾'}</button>
     <div class="field more-options" id="f-more-options" style="display:${startOpen?'block':'none'};">
       <label>Page multiplier (optional)</label>
-      <input id="f-mult" type="number" inputmode="decimal" step="0.5" min="1" value="${multValue}">
-      <div class="field-hint">e.g. 2× if you count illustrated spreads as double</div>
+      <input id="f-mult" type="number" inputmode="decimal" step="any" min="0.01" value="${multValue}">
+      <div class="field-hint">e.g. 2× if you count illustrated spreads as double, or 0.5× if 2 pages count as 1</div>
     </div>`;
 }
 function wireMoreOptionsToggle(root){
@@ -1295,7 +1296,7 @@ function openAddBookSheet(){
       const target = parseInt(root.querySelector('#f-target').value, 10);
       const mult = parseFloat(root.querySelector('#f-mult').value);
       if(!title) return;
-      const book = { id:uid(), title, targetPages: isNaN(target)?null:target, multiplier: (isNaN(mult)||mult<1)?1:mult, entries:[], completed:false, archived:false, updatedAt:Date.now() };
+      const book = { id:uid(), title, targetPages: isNaN(target)?null:target, multiplier: (isNaN(mult)||mult<=0)?1:mult, entries:[], completed:false, archived:false, updatedAt:Date.now() };
       store.data.books.push(book);
       saveData(); closeSheet(); render();
     });
@@ -1310,7 +1311,7 @@ function openBookEditSheet(bookId){
     <h2>Edit book</h2>
     <div class="field"><label>Title</label><input id="f-title" type="text" value="${escapeHtml(b.title)}"></div>
     <div class="field"><label>Total pages (optional)</label><input id="f-target" type="number" inputmode="numeric" value="${b.targetPages||''}"></div>
-    ${moreOptionsHtml(mult, mult > 1)}
+    ${moreOptionsHtml(mult, mult !== 1)}
     <div class="btn-row">
       <button class="btn btn-secondary" id="f-cancel">Cancel</button>
       <button class="btn btn-primary" id="f-save">Save</button>
@@ -1323,7 +1324,7 @@ function openBookEditSheet(bookId){
       const target = parseInt(root.querySelector('#f-target').value, 10);
       const mult = parseFloat(root.querySelector('#f-mult').value);
       if(!title) return;
-      b.title = title; b.targetPages = isNaN(target)?null:target; b.multiplier = (isNaN(mult)||mult<1)?1:mult; b.updatedAt = Date.now();
+      b.title = title; b.targetPages = isNaN(target)?null:target; b.multiplier = (isNaN(mult)||mult<=0)?1:mult; b.updatedAt = Date.now();
       saveData(); closeSheet(); render();
     });
   });

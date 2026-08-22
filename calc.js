@@ -76,7 +76,7 @@
 
   function bookMultiplier(book) {
     const m = parseFloat(book.multiplier);
-    return (!m || m < 1) ? 1 : m;
+    return (!m || m <= 0) ? 1 : m;
   }
 
   function bookEffectivePages(book) {
